@@ -50,7 +50,7 @@ defmodule LiveMetricsWeb.Layouts do
         
     <!-- Main content -->
         <main class="flex-1 overflow-y-auto bg-base-100">
-          <div class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 h-full">
+          <div class="p-4 sm:p-6 lg:p-8 mx-auto space-y-4 h-full">
             {render_slot(@inner_block)}
           </div>
         </main>

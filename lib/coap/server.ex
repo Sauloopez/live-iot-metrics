@@ -110,10 +110,13 @@ defmodule LiveMetrics.Coap.Server do
 
         is_float(sensor_precision) ->
           sensor_precision
+
+        true ->
+          0.0
       end
 
     reading_time = Map.get(data, "reading_time")
-    sensor_type = String.downcase(Map.get(data, "sensor_type"))
+    sensor_type = String.downcase(Map.get(data, "sensor_type") || "unknown", :default)
 
     with {:ok, node} <- LiveMetrics.Nodes.get_or_insert(mac),
          {:ok, sensor} <-

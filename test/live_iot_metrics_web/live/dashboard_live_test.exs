@@ -145,5 +145,30 @@ defmodule LiveMetricsWeb.DashboardLiveTest do
       assert html =~ node.name
       assert html =~ format_mac(node.mac)
     end
+
+    test "updates metrics via PubSub when new reading arrives", %{
+      conn: conn,
+      area: area,
+      node: node
+    } do
+      # Pre-assign node
+      Repo.update_all(from(n in Nodes, where: n.id == ^node.id), set: [area_id: area.id])
+
+      # Create a sensor
+      {:ok, sensor} = LiveMetrics.Sensor.update_or_create(node, 1, "temperature", 0.1)
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Create reading, which triggers PubSub broadcast
+      {:ok, _reading} =
+        LiveMetrics.SensorReading.create_reading(%{
+          sensor_id: sensor.id,
+          value: 42.5,
+          reading_time: DateTime.utc_now()
+        })
+
+      # The view should automatically update to show the new value
+      assert render(view) =~ "42.5"
+    end
   end
 end

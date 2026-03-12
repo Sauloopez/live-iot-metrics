@@ -21,5 +21,20 @@ defmodule LiveMetrics.SensorReading do
     %LiveMetrics.SensorReading{}
     |> changeset(attrs)
     |> Repo.insert()
+    |> broadcast_reading()
   end
+
+  defp broadcast_reading({:ok, reading} = result) do
+    reading = Repo.preload(reading, :sensor)
+
+    Phoenix.PubSub.broadcast(
+      LiveMetrics.PubSub,
+      "sensor_readings",
+      {:new_reading, reading}
+    )
+
+    result
+  end
+
+  defp broadcast_reading(error), do: error
 end
