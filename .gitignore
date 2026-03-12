@@ -35,3 +35,5 @@ live_iot_metrics-*.tar
 npm-debug.log
 /assets/node_modules/
 
+.env
+data

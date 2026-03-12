@@ -6,10 +6,10 @@ import Config
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :live_iot_metrics, LiveMetrics.Repo,
-  username: "postgres",
-  password: "postgres",
+  username: "root",
+  password: "secure-password",
   hostname: "localhost",
-  database: "live_iot_metrics_test#{System.get_env("MIX_TEST_PARTITION")}",
+  database: "metrics",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 

@@ -2,10 +2,11 @@ import Config
 
 # Configure your database
 config :live_iot_metrics, LiveMetrics.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "live_iot_metrics_dev",
+  username: System.get_env("DB_USER") || "root",
+  password: System.get_env("DB_PASSWORD") || "secure-password",
+  database: System.get_env("DB_NAME") || "metrics",
+  hostname: System.get_env("DB_HOST") || "localhost",
+  port: String.to_integer(System.get_env("DB_PORT") || "5432"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10

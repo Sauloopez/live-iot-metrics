@@ -14,6 +14,7 @@ defmodule LiveMetrics.Application do
       {Phoenix.PubSub, name: LiveMetrics.PubSub},
       # Start a worker by calling: LiveMetrics.Worker.start_link(arg)
       # {LiveMetrics.Worker, arg},
+      LiveMetrics.Coap.Server,
       # Start to serve requests, typically the last entry
       LiveMetricsWeb.Endpoint
     ]
