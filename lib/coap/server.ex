@@ -98,10 +98,26 @@ defmodule LiveMetrics.Coap.Server do
           0.0
       end
 
+    sensor_precision = Map.get(data, "precision")
+
+    precision =
+      cond do
+        is_bitstring(sensor_precision) ->
+          case Float.parse(sensor_precision) do
+            {f, _} -> f
+            :error -> 0.0
+          end
+
+        is_float(sensor_precision) ->
+          sensor_precision
+      end
+
     reading_time = Map.get(data, "reading_time")
+    sensor_type = String.downcase(Map.get(data, "sensor_type"))
 
     with {:ok, node} <- LiveMetrics.Nodes.get_or_insert(mac),
-         {:ok, sensor} <- LiveMetrics.Sensor.update_or_create(node, sensor_id, "default", 0.0),
+         {:ok, sensor} <-
+           LiveMetrics.Sensor.update_or_create(node, sensor_id, sensor_type, precision),
          {:ok, _reading} <-
            LiveMetrics.SensorReading.create_reading(%{
              sensor_id: sensor.id,

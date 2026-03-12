@@ -28,7 +28,9 @@ defmodule LiveMetrics.Coap.ServerTest do
           "mac_address" => "00:1A:2B:3C:4D:5E",
           "sensor_id" => 1,
           "value" => 23.5,
-          "reading_time" => DateTime.utc_now() |> DateTime.to_iso8601()
+          "reading_time" => DateTime.utc_now() |> DateTime.to_iso8601(),
+          "sensor_type" => "temperature",
+          "precision" => 0.7
         })
 
       content = {:coap_content, :undefined, 60, :undefined, payload}

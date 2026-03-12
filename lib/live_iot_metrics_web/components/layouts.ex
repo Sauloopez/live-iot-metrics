@@ -35,38 +35,52 @@ defmodule LiveMetricsWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
+    <div class="drawer lg:drawer-open">
+      <input id="app-drawer" type="checkbox" class="drawer-toggle" />
+      <div class="drawer-content flex flex-col h-screen">
+        <!-- Navbar for mobile -->
+        <div class="w-full navbar bg-base-300 lg:hidden">
+          <div class="flex-none">
+            <label for="app-drawer" aria-label="open sidebar" class="btn btn-square btn-ghost">
+              <.icon name="hero-bars-3" class="w-6 h-6" />
+            </label>
+          </div>
+          <div class="flex-1 px-2 mx-2 font-bold text-primary">LiveMetrics</div>
+        </div>
+        
+    <!-- Main content -->
+        <main class="flex-1 overflow-y-auto bg-base-100">
+          <div class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 h-full">
+            {render_slot(@inner_block)}
+          </div>
+        </main>
       </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
+      
+    <!-- Sidebar -->
+      <div class="drawer-side z-40">
+        <label for="app-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+        <ul class="menu p-4 w-80 min-h-full bg-base-200 text-base-content border-r border-base-300/50">
+          <div class="mb-8 px-4 flex items-center gap-2 font-bold text-2xl text-primary">
+            <.icon name="hero-chart-bar" class="w-8 h-8" /> LiveMetrics
+          </div>
+
           <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
+            <.link navigate={~p"/"}>
+              <.icon name="hero-home" class="w-5 h-5" /> Dashboard
+            </.link>
           </li>
           <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
+            <.link navigate={~p"/devices"}>
+              <.icon name="hero-cpu-chip" class="w-5 h-5" /> Devices
+            </.link>
           </li>
-          <li>
+
+          <div class="mt-auto pt-4 flex justify-center">
             <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
+          </div>
         </ul>
       </div>
-    </header>
-
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
+    </div>
 
     <.flash_group flash={@flash} />
     """

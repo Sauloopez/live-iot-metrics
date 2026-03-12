@@ -17,7 +17,8 @@ defmodule LiveMetricsWeb.Router do
   scope "/", LiveMetricsWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", DashboardLive
+    live "/devices", DevicesLive
   end
 
   # Other scopes may use custom stacks.

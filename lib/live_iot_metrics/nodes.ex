@@ -5,6 +5,7 @@ defmodule LiveMetrics.Nodes do
 
   schema "nodes" do
     belongs_to :area, LiveMetrics.Area
+    has_many :sensors, LiveMetrics.Sensor, foreign_key: :node_id
     field :name, :string
     field :mac, :binary
     field :description, :string
