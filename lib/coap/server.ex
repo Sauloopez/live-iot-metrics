@@ -2,6 +2,13 @@ defmodule LiveMetrics.Coap.Server do
   use GenServer
   require Logger
 
+  require Record
+
+  Record.extract_all(from_lib: "gen_coap/include/coap.hrl")
+  |> Enum.each(fn {name, definition} ->
+    Record.defrecord(name, definition)
+  end)
+
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -26,31 +33,41 @@ defmodule LiveMetrics.Coap.Server do
   end
 
   def coap_get(_ch_id, ["grettings"], _name, _query, _content) do
-    {:coap_content, :undefined, 60, :undefined, "Hello from CoAP!"}
+    # { :coap_content, etag, max_age, format, location_path, payload }
+    {:coap_content, :undefined, 60, :undefined, [], "Hello from CoAP!"}
   end
 
   def coap_get(_ch_id, _prefix, _name, _query, _content) do
     {:error, :not_found}
   end
 
-  def coap_post(_ch_id, ["metrics"], _name, {:coap_content, _etag, _max_age, _format, payload}) do
-    case Jason.decode(payload) do
-      {:ok, data} ->
-        case handle_metrics(data) do
-          :ok ->
-            {:ok, :created, {:coap_content, :undefined, 60, :undefined, "OK"}}
+  def coap_post(_ch_id, p, _name, {:coap_content, _t, _max_age, content_type, _p, payload}) do
+    # p expected ["metrics"]
+    case p do
+      ["metrics"] ->
+        case content_type do
+          "application/json" ->
+            case Jason.decode(payload) do
+              {:ok, data} ->
+                case handle_metrics(data) do
+                  :ok ->
+                    {:ok, :created, {:coap_content, :undefined, 60, :undefined, [], "OK"}}
 
-          :error ->
-            {:error, :internal_server_error}
+                  :error ->
+                    {:error, :internal_server_error}
+                end
+
+              {:error, _} ->
+                {:error, :bad_request}
+            end
+
+          _ ->
+            {:error, :bad_request}
         end
 
-      {:error, _} ->
-        {:error, :bad_request}
+      _ ->
+        {:error, :not_found}
     end
-  end
-
-  def coap_post(_ch_id, _prefix, _name, _content) do
-    {:error, :method_not_allowed}
   end
 
   def coap_put(_ch_id, _prefix, _name, _content) do
@@ -77,7 +94,15 @@ defmodule LiveMetrics.Coap.Server do
 
   defp handle_metrics(data) do
     mac = Map.get(data, "mac_address")
-    sensor_id = Map.get(data, "sensor_id")
+    raw_sensor_id = Map.get(data, "sensor_id")
+
+    sensor_id =
+      cond do
+        is_integer(raw_sensor_id) -> raw_sensor_id
+        is_bitstring(raw_sensor_id) -> String.length(raw_sensor_id)
+        true -> 0
+      end
+
     raw_value = Map.get(data, "value")
 
     value =

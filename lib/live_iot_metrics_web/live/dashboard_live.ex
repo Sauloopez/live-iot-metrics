@@ -9,6 +9,7 @@ defmodule LiveMetricsWeb.DashboardLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
+      IO.puts("connected to socket")
       Phoenix.PubSub.subscribe(LiveMetrics.PubSub, "sensor_readings")
     end
 
@@ -21,6 +22,7 @@ defmodule LiveMetricsWeb.DashboardLive do
       |> assign(:show_add_area_modal, false)
       |> assign(:show_add_node_modal, false)
       |> assign(:time_interval, :last_hour)
+      |> assign(:latest_readings, %{})
       |> load_active_area_nodes()
 
     {:ok, socket}
@@ -118,6 +120,7 @@ defmodule LiveMetricsWeb.DashboardLive do
   @impl true
   def handle_info({:new_reading, reading}, socket) do
     node_id = reading.sensor.node_id
+    IO.puts("New reading received for node #{node_id}")
 
     socket =
       if Enum.any?(socket.assigns.active_nodes, &(&1.id == node_id)) do
@@ -126,6 +129,11 @@ defmodule LiveMetricsWeb.DashboardLive do
             value: reading.value,
             time: reading.reading_time
           })
+
+        send_update(LiveIotMetricsWeb.SensorLiveChart,
+          id: "sensor-chart-#{reading.sensor_id}",
+          new_reading: reading
+        )
 
         assign(socket, :latest_readings, new_readings)
       else
@@ -149,29 +157,8 @@ defmodule LiveMetricsWeb.DashboardLive do
         []
       end
 
-    node_ids = Enum.map(nodes, & &1.id)
-
-    latest_readings =
-      if node_ids != [] do
-        Repo.all(
-          from r in LiveMetrics.SensorReading,
-            join: s in LiveMetrics.Sensor,
-            on: r.sensor_id == s.id,
-            where: s.node_id in ^node_ids,
-            distinct: s.node_id,
-            order_by: [asc: s.node_id, desc: r.reading_time],
-            select: {s.node_id, r.value, r.reading_time}
-        )
-        |> Enum.into(%{}, fn {node_id, value, time} ->
-          {node_id, %{value: value, time: time}}
-        end)
-      else
-        %{}
-      end
-
     socket
     |> assign(:active_nodes, nodes)
-    |> assign(:latest_readings, latest_readings)
   end
 
   defp maybe_get_id(nil), do: nil
@@ -286,19 +273,17 @@ defmodule LiveMetricsWeb.DashboardLive do
                             <div class="stat-title text-xs">Sensors</div>
                             <div class="stat-value text-lg">{length(node.sensors)}</div>
                           </div>
-                          <div class="stat px-4 py-2">
-                            <div class="stat-title text-xs">Last Reading</div>
-                            <div class="stat-value text-lg">
-                              <%= if reading = @latest_readings[node.id] do %>
-                                {reading.value}
-                                <div class="text-[0.65rem] font-normal text-base-content/60 mt-1">
-                                  {Calendar.strftime(reading.time, "%H:%M:%S")}
-                                </div>
-                              <% else %>
-                                -
-                              <% end %>
+                          <%= for sensor <- node.sensors do %>
+                            <div class="stat px-4 py-2">
+                              <div class="stat-title text-xs">{sensor.sensor_type}</div>
+                              <.live_component
+                                id={"sensor-chart-#{sensor.id}"}
+                                module={LiveIotMetricsWeb.SensorLiveChart}
+                                sensor_id={sensor.id}
+                                interval={@time_interval}
+                              />
                             </div>
-                          </div>
+                          <% end %>
                         </div>
                       </div>
                     </div>
