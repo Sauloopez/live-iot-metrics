@@ -28,7 +28,7 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
       end
 
     historical_data =
-      LiveMetrics.SensorReading
+      LiveMetrics.Models.SensorReading
       |> where([r], r.sensor_id == ^sensor_id)
       |> where([r], r.reading_time >= ^start_time and r.reading_time <= ^now)
       |> order_by(desc: :reading_time)

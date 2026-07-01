@@ -1,10 +1,10 @@
-defmodule LiveMetrics.Sensor do
+defmodule LiveMetrics.Models.Sensor do
   alias LiveMetrics.Repo
   use LiveMetrics.BaseSchema
   import Ecto.Changeset
 
   schema "sensors" do
-    belongs_to :node, LiveMetrics.Nodes
+    belongs_to :node, LiveMetrics.Models.Nodes
     field :node_sensor_id, :integer
     field :sensor_type, :string
     field :precision, :float
@@ -21,8 +21,8 @@ defmodule LiveMetrics.Sensor do
 
   def update_or_create(node, sensor_id, sensor_type, precision) do
     sensor =
-      Repo.get_by(LiveMetrics.Sensor, node_sensor_id: sensor_id, node_id: node.id) ||
-        %LiveMetrics.Sensor{}
+      Repo.get_by(LiveMetrics.Models.Sensor, node_sensor_id: sensor_id, node_id: node.id) ||
+        %LiveMetrics.Models.Sensor{}
 
     sensor
     |> changeset(%{

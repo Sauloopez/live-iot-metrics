@@ -163,11 +163,8 @@ void loop() {
             // Apply precision/scaling factor depending on specific sensor types
             float value = rawValue * sensor.precision;
 
-            // Grab the current synchronized timestamp
-            String timestamp = ntpClient.getIso8601Time();
-
-            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Value: %.2f | Time: %s\n",
-                          sensor.id, sensor.pin, value, timestamp.c_str());
+            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Value: %.2f ",
+                          sensor.id, sensor.pin, value);
 
             // Dispatch via CoAP
             bool success = coapClient.sendMetric(
@@ -175,8 +172,7 @@ void loop() {
                 sensor.id,
                 sensor.type,
                 sensor.precision,
-                value,
-                timestamp
+                value
             );
 
             if (!success) {

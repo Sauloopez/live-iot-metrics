@@ -1,4 +1,5 @@
-defmodule LiveMetrics.Coap.Server do
+defmodule LiveMetrics.CoapServer do
+  alias LiveMetrics.MetricsBuffer
   use GenServer
   require Logger
 
@@ -20,7 +21,7 @@ defmodule LiveMetrics.Coap.Server do
     :coap_server.start_udp(:live_metrics_coap_udp, 5683)
 
     # Register endpoints
-    :coap_server_registry.add_handler(["grettings"], __MODULE__, nil)
+    :coap_server_registry.add_handler(["greetings"], __MODULE__, nil)
     :coap_server_registry.add_handler(["metrics"], __MODULE__, nil)
 
     Logger.info("CoAP server started and endpoints registered.")
@@ -32,7 +33,7 @@ defmodule LiveMetrics.Coap.Server do
     [{:absolute, prefix, []}]
   end
 
-  def coap_get(_ch_id, ["grettings"], _name, _query, _content) do
+  def coap_get(_ch_id, ["greetings"], _name, _query, _content) do
     # { :coap_content, etag, max_age, format, location_path, payload }
     {:coap_content, :undefined, 60, :undefined, [], "Hello from CoAP!"}
   end
@@ -43,6 +44,8 @@ defmodule LiveMetrics.Coap.Server do
 
   def coap_post(_ch_id, p, _name, {:coap_content, _t, _max_age, content_type, _p, payload}) do
     # p expected ["metrics"]
+    Logger.info("Received request")
+
     case p do
       ["metrics"] ->
         case content_type do
@@ -52,9 +55,6 @@ defmodule LiveMetrics.Coap.Server do
                 case handle_metrics(data) do
                   :ok ->
                     {:ok, :created, {:coap_content, :undefined, 60, :undefined, [], "OK"}}
-
-                  :error ->
-                    {:error, :internal_server_error}
                 end
 
               {:error, _} ->
@@ -93,8 +93,8 @@ defmodule LiveMetrics.Coap.Server do
   # --- Internal functions ---
 
   defp handle_metrics(data) do
-    mac = Map.get(data, "mac_address")
-    raw_sensor_id = Map.get(data, "sensor_id")
+    mac = Map.get(data, "m")
+    raw_sensor_id = Map.get(data, "s")
 
     sensor_id =
       cond do
@@ -103,7 +103,7 @@ defmodule LiveMetrics.Coap.Server do
         true -> 0
       end
 
-    raw_value = Map.get(data, "value")
+    raw_value = Map.get(data, "v")
 
     value =
       cond do
@@ -123,7 +123,7 @@ defmodule LiveMetrics.Coap.Server do
           0.0
       end
 
-    sensor_precision = Map.get(data, "precision")
+    sensor_precision = Map.get(data, "p")
 
     precision =
       cond do
@@ -140,23 +140,8 @@ defmodule LiveMetrics.Coap.Server do
           0.0
       end
 
-    reading_time = Map.get(data, "reading_time")
-    sensor_type = String.downcase(Map.get(data, "sensor_type") || "unknown", :default)
-
-    with {:ok, node} <- LiveMetrics.Nodes.get_or_insert(mac),
-         {:ok, sensor} <-
-           LiveMetrics.Sensor.update_or_create(node, sensor_id, sensor_type, precision),
-         {:ok, _reading} <-
-           LiveMetrics.SensorReading.create_reading(%{
-             sensor_id: sensor.id,
-             value: value,
-             reading_time: reading_time
-           }) do
-      :ok
-    else
-      err ->
-        Logger.error("Failed to process metrics: #{inspect(err)}")
-        :error
-    end
+    sensor_type = String.downcase(Map.get(data, "t") || "unknown", :default)
+    MetricsBuffer.enqueue(mac, sensor_id, sensor_type, precision, value, DateTime.utc_now())
+    :ok
   end
 end

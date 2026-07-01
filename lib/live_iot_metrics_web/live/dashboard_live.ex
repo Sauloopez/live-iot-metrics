@@ -1,8 +1,8 @@
 defmodule LiveMetricsWeb.DashboardLive do
   use LiveMetricsWeb, :live_view
 
-  alias LiveMetrics.Area
-  alias LiveMetrics.Nodes
+  alias LiveMetrics.Models.Area
+  alias LiveMetrics.Models.Nodes
   alias LiveMetrics.Repo
   import Ecto.Query
 

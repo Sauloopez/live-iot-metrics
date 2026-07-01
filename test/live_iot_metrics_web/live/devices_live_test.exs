@@ -3,9 +3,9 @@ defmodule LiveMetricsWeb.DevicesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias LiveMetrics.Area
-  alias LiveMetrics.Nodes
-  alias LiveMetrics.Sensor
+  alias LiveMetrics.Models.Area
+  alias LiveMetrics.Models.Nodes
+  alias LiveMetrics.Models.Sensor
 
   defp create_fixtures(_) do
     {:ok, area} = Area.create_area(%{name: "Main Area", description: "The main area"})

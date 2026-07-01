@@ -4,8 +4,8 @@ defmodule LiveMetricsWeb.DashboardLiveTest do
   import Phoenix.LiveViewTest
   import Ecto.Query
 
-  alias LiveMetrics.Area
-  alias LiveMetrics.Nodes
+  alias LiveMetrics.Models.Area
+  alias LiveMetrics.Models.Nodes
   alias LiveMetrics.Repo
 
   defp create_area(_) do
@@ -155,13 +155,13 @@ defmodule LiveMetricsWeb.DashboardLiveTest do
       Repo.update_all(from(n in Nodes, where: n.id == ^node.id), set: [area_id: area.id])
 
       # Create a sensor
-      {:ok, sensor} = LiveMetrics.Sensor.update_or_create(node, 1, "temperature", 0.1)
+      {:ok, sensor} = LiveMetrics.Models.Sensor.update_or_create(node, 1, "temperature", 0.1)
 
       {:ok, view, _html} = live(conn, ~p"/")
 
       # Create reading, which triggers PubSub broadcast
       {:ok, _reading} =
-        LiveMetrics.SensorReading.create_reading(%{
+        LiveMetrics.Models.SensorReading.create_reading(%{
           sensor_id: sensor.id,
           value: 42.5,
           reading_time: DateTime.utc_now()

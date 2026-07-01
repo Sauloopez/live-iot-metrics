@@ -20,7 +20,7 @@ void test_send_metric_fails_with_invalid_config(void) {
     CoapConfig invalidConfig("", 5683);
     coapClient->begin(invalidConfig);
 
-    bool result = coapClient->sendMetric("00:11:22:33:44:55", 1, "temp", 0.5, 23.5, "2023-10-27T10:00:00Z");
+    bool result = coapClient->sendMetric("00:11:22:33:44:55", 1, "temp", 0.5, 23.5);
 
     // Should fail gracefully and return false without crashing
     TEST_ASSERT_FALSE(result);

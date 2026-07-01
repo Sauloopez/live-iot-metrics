@@ -1,11 +1,11 @@
-defmodule LiveMetrics.Area do
+defmodule LiveMetrics.Models.Area do
   use LiveMetrics.BaseSchema
   import Ecto.Changeset
 
   schema "areas" do
     field :name, :string
     field :description, :string
-    has_many :nodes, LiveMetrics.Nodes
+    has_many :nodes, LiveMetrics.Models.Nodes
 
     timestamps()
   end
@@ -18,7 +18,7 @@ defmodule LiveMetrics.Area do
   end
 
   def create_area(attrs) do
-    %LiveMetrics.Area{}
+    %LiveMetrics.Models.Area{}
     |> changeset(attrs)
     |> LiveMetrics.Repo.insert()
   end

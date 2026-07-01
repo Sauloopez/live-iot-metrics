@@ -1,9 +1,9 @@
 defmodule LiveMetricsWeb.DevicesLive do
   use LiveMetricsWeb, :live_view
 
-  alias LiveMetrics.Nodes
-  alias LiveMetrics.Area
-  alias LiveMetrics.Sensor
+  alias LiveMetrics.Models.Nodes
+  alias LiveMetrics.Models.Area
+  alias LiveMetrics.Models.Sensor
   alias LiveMetrics.Repo
   import Ecto.Query
 
