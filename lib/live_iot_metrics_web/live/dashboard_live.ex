@@ -4,6 +4,10 @@ defmodule LiveMetricsWeb.DashboardLive do
   alias LiveMetrics.Models.Area
   alias LiveMetrics.Models.Nodes
   alias LiveMetrics.Repo
+  alias LiveMetricsWeb.Components.AddNodeModal
+  alias LiveMetricsWeb.Components.AddAreaModal
+  alias LiveMetricsWeb.Components.AreasTabs
+
   import Ecto.Query
 
   @impl true
@@ -23,6 +27,7 @@ defmodule LiveMetricsWeb.DashboardLive do
       |> assign(:show_add_node_modal, false)
       |> assign(:time_interval, :last_hour)
       |> assign(:latest_readings, %{})
+      |> assign(:unassigned_nodes, [])
       |> load_active_area_nodes()
 
     {:ok, socket}
@@ -46,26 +51,6 @@ defmodule LiveMetricsWeb.DashboardLive do
     {:noreply, assign(socket, :show_add_area_modal, false)}
   end
 
-  def handle_event("save_area", %{"name" => name, "description" => desc}, socket) do
-    case Area.create_area(%{name: name, description: desc}) do
-      {:ok, area} ->
-        areas = Repo.all(Area)
-
-        socket =
-          socket
-          |> assign(:areas, areas)
-          |> assign(:active_area_id, area.id)
-          |> assign(:show_add_area_modal, false)
-          |> put_flash(:info, "Area added successfully")
-          |> load_active_area_nodes()
-
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Error creating area")}
-    end
-  end
-
   def handle_event("show_add_node", _, socket) do
     unassigned_nodes = Repo.all(from n in Nodes, where: is_nil(n.area_id))
 
@@ -79,11 +64,38 @@ defmodule LiveMetricsWeb.DashboardLive do
     {:noreply, assign(socket, :show_add_node_modal, false)}
   end
 
-  def handle_event("save_nodes", %{"node_ids" => node_ids}, socket) do
+  def handle_event("set_interval", %{"interval" => interval}, socket) do
+    socket =
+      socket
+      |> assign(:time_interval, String.to_existing_atom(interval))
+      |> load_active_area_nodes()
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:area_created, area}, socket) do
+    areas = Repo.all(Area)
+
+    socket =
+      socket
+      |> assign(:areas, areas)
+      |> assign(:active_area_id, area.id)
+      |> assign(:show_add_area_modal, false)
+      |> put_flash(:info, "Area added successfully")
+      |> load_active_area_nodes()
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:area_creation_failed, message}, socket) do
+    {:noreply, put_flash(socket, :error, message)}
+  end
+
+  def handle_info({:assign_nodes, node_ids}, socket) do
     active_area_id = socket.assigns.active_area_id
 
     if active_area_id do
-      # Update nodes to belong to this area
       {count, _} =
         Repo.update_all(
           from(n in Nodes, where: n.id in ^node_ids),
@@ -102,25 +114,12 @@ defmodule LiveMetricsWeb.DashboardLive do
     end
   end
 
-  # When form submits with no nodes selected
-  def handle_event("save_nodes", _, socket) do
+  def handle_info({:close_node_modal}, socket) do
     {:noreply, assign(socket, :show_add_node_modal, false)}
   end
 
-  def handle_event("set_interval", %{"interval" => interval}, socket) do
-    socket =
-      socket
-      |> assign(:time_interval, String.to_existing_atom(interval))
-      # In a real app, you would fetch new data here based on interval
-      |> load_active_area_nodes()
-
-    {:noreply, socket}
-  end
-
-  @impl true
   def handle_info({:new_reading, reading}, socket) do
     node_id = reading.sensor.node_id
-    IO.puts("New reading received for node #{node_id}")
 
     socket =
       if Enum.any?(socket.assigns.active_nodes, &(&1.id == node_id)) do
@@ -143,22 +142,19 @@ defmodule LiveMetricsWeb.DashboardLive do
     {:noreply, socket}
   end
 
+  # --- Privates de Carga de Datos y Formateo ---
+
   defp load_active_area_nodes(socket) do
     area_id = socket.assigns.active_area_id
 
     nodes =
       if area_id do
-        Repo.all(
-          from n in Nodes,
-            where: n.area_id == ^area_id,
-            preload: [:sensors]
-        )
+        Repo.all(from n in Nodes, where: n.area_id == ^area_id, preload: [:sensors])
       else
         []
       end
 
-    socket
-    |> assign(:active_nodes, nodes)
+    assign(socket, :active_nodes, nodes)
   end
 
   defp maybe_get_id(nil), do: nil
@@ -167,11 +163,11 @@ defmodule LiveMetricsWeb.DashboardLive do
   defp format_mac(nil), do: ""
 
   defp format_mac(mac) when is_binary(mac) do
-    mac
-    |> Base.encode16()
-    |> to_charlist()
-    |> Enum.chunk_every(2)
-    |> Enum.join(":")
+    mac |> Base.encode16() |> to_charlist() |> Enum.chunk_every(2) |> Enum.join(":")
+  end
+
+  defp areas_tabs(assigns) do
+    AreasTabs.render(assigns)
   end
 
   @impl true
@@ -197,25 +193,10 @@ defmodule LiveMetricsWeb.DashboardLive do
             </div>
           </div>
         <% else %>
-          <div role="tablist" class="tabs tabs-lift">
-            <%= for area <- @areas do %>
-              <a
-                role="tab"
-                class={[
-                  "tab tab-lg",
-                  @active_area_id == area.id &&
-                    "tab-active font-bold"
-                ]}
-                phx-click="select_area"
-                phx-value-id={area.id}
-              >
-                {area.name}
-              </a>
-            <% end %>
-          </div>
+          <.areas_tabs areas={@areas} active_area_id={@active_area_id} />
 
           <%= if @active_area_id do %>
-            <div class="bg-base-200 rounded-box p-6 space-y-6">
+            <div class="bg-base-200 rounded-box p-6 space-y-6 mt-4">
               <div class="flex justify-between items-center flex-wrap gap-4">
                 <h2 class="text-xl font-bold">Area Devices</h2>
 
@@ -293,100 +274,17 @@ defmodule LiveMetricsWeb.DashboardLive do
             </div>
           <% end %>
         <% end %>
-        
-    <!-- Add Area Modal -->
         <%= if @show_add_area_modal do %>
-          <dialog class="modal modal-open">
-            <div class="modal-box">
-              <h3 class="font-bold text-lg mb-4">Add New Area</h3>
-              <form phx-submit="save_area">
-                <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border p-4">
-                  <legend class="fieldset-legend">Name</legend>
-                  <input
-                    type="text"
-                    name="name"
-                    class="input input-bordered w-full"
-                    required
-                    placeholder="E.g. Greenhouse 1"
-                  />
-                </fieldset>
-                <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border p-4">
-                  <legend class="fieldset-legend">Description</legend>
-                  <textarea
-                    name="description"
-                    class="textarea textarea-bordered h-24 w-full"
-                    required
-                    placeholder="Description of the area..."
-                  ></textarea>
-                </fieldset>
-                <div class="modal-action">
-                  <button type="button" class="btn" phx-click="close_add_area">Cancel</button>
-                  <button type="submit" class="btn btn-primary">Save Area</button>
-                </div>
-              </form>
-            </div>
-            <form method="dialog" class="modal-backdrop" phx-click="close_add_area">
-              <button>close</button>
-            </form>
-          </dialog>
+          <.live_component id="add-area-modal" module={AddAreaModal} />
         <% end %>
-        
-    <!-- Add Node Modal -->
-        <%= if @show_add_node_modal do %>
-          <dialog class="modal modal-open">
-            <div class="modal-box max-w-2xl">
-              <h3 class="font-bold text-lg mb-4">Assign Devices to Area</h3>
 
-              <%= if Enum.empty?(@unassigned_nodes) do %>
-                <div class="alert alert-info">
-                  <.icon name="hero-information-circle" class="w-6 h-6" />
-                  <span>
-                    No available unassigned devices found. Device nodes will appear here when they connect and send data.
-                  </span>
-                </div>
-                <div class="modal-action">
-                  <button type="button" class="btn" phx-click="close_add_node">Close</button>
-                </div>
-              <% else %>
-                <form phx-submit="save_nodes">
-                  <div class="overflow-x-auto max-h-96">
-                    <table class="table table-zebra w-full">
-                      <thead>
-                        <tr>
-                          <th>Select</th>
-                          <th>Name</th>
-                          <th>MAC Address</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <%= for node <- @unassigned_nodes do %>
-                          <tr>
-                            <td>
-                              <input
-                                type="checkbox"
-                                name="node_ids[]"
-                                value={node.id}
-                                class="checkbox checkbox-primary"
-                              />
-                            </td>
-                            <td class="font-medium">{node.name}</td>
-                            <td class="font-mono text-sm">{format_mac(node.mac)}</td>
-                          </tr>
-                        <% end %>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div class="modal-action mt-6">
-                    <button type="button" class="btn" phx-click="close_add_node">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Assign Selected</button>
-                  </div>
-                </form>
-              <% end %>
-            </div>
-            <form method="dialog" class="modal-backdrop" phx-click="close_add_node">
-              <button>close</button>
-            </form>
-          </dialog>
+        <%= if @show_add_node_modal do %>
+          <.live_component
+            id="add-node-modal"
+            module={AddNodeModal}
+            unassigned_nodes={@unassigned_nodes}
+            format_mac_fun={&format_mac/1}
+          />
         <% end %>
       </div>
     </LiveMetricsWeb.Layouts.app>
