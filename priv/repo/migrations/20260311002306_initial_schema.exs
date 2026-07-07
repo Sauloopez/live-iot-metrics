@@ -13,9 +13,8 @@ defmodule LiveMetrics.Repo.Migrations.InitialSchema do
 
     create table("nodes", primary_key: false) do
       add :id, :binary_id, primary_key: true, autogenerate: true
-      add :area_id, references("areas", on_delete: :delete_all, type: :binary_id), null: true
       add :name, :string, unique: true
-      add :mac, :binary, unique: true
+      add :mac, :string, unique: true
       add :description, :string
       timestamps(type: :timestamptz, default: fragment("now()"))
     end

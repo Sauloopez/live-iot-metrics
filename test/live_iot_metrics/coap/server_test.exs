@@ -28,7 +28,9 @@ defmodule LiveMetrics.Coap.ServerTest do
           "mac_address" => "00:1A:2B:3C:4D:5E",
           "sensor_id" => 1,
           "value" => 23.5,
-          "reading_time" => DateTime.utc_now() |> DateTime.to_iso8601()
+          "reading_time" => DateTime.utc_now() |> DateTime.to_iso8601(),
+          "sensor_type" => "temperature",
+          "precision" => 0.7
         })
 
       content = {:coap_content, :undefined, 60, :undefined, payload}
@@ -36,14 +38,19 @@ defmodule LiveMetrics.Coap.ServerTest do
       assert {:ok, :created, {:coap_content, :undefined, 60, :undefined, "OK"}} =
                Server.coap_post(ch_id, ["metrics"], nil, content)
 
-      assert {:ok, node} = LiveMetrics.Nodes.get_or_insert("00:1A:2B:3C:4D:5E")
+      assert {:ok, node} = LiveMetrics.Models.Nodes.get_or_insert("00:1A:2B:3C:4D:5E")
 
       # Should be able to see the reading
-      sensor = LiveMetrics.Repo.get_by(LiveMetrics.Sensor, node_sensor_id: 1, node_id: node.id)
+      sensor =
+        LiveMetrics.Repo.get_by(LiveMetrics.Models.Sensor, node_sensor_id: 1, node_id: node.id)
+
       assert sensor
 
       reading =
-        LiveMetrics.Repo.get_by(LiveMetrics.SensorReading, sensor_id: sensor.id, value: 23.5)
+        LiveMetrics.Repo.get_by(LiveMetrics.Models.SensorReading,
+          sensor_id: sensor.id,
+          value: 23.5
+        )
 
       assert reading
     end

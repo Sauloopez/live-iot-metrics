@@ -12,9 +12,11 @@ defmodule LiveMetrics.Application do
       LiveMetrics.Repo,
       {DNSCluster, query: Application.get_env(:live_iot_metrics, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LiveMetrics.PubSub},
+      LiveMetrics.MetricsBuffer,
       # Start a worker by calling: LiveMetrics.Worker.start_link(arg)
       # {LiveMetrics.Worker, arg},
-      LiveMetrics.Coap.Server,
+      LiveMetrics.CoapServer,
+      LiveMetrics.SensorReadingListener,
       # Start to serve requests, typically the last entry
       LiveMetricsWeb.Endpoint
     ]
