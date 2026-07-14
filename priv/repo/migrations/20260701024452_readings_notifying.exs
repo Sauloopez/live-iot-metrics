@@ -12,15 +12,18 @@ defmodule LiveMetrics.Repo.Migrations.ReadingsNotifying do
         RETURN NEW;
       END;
       $$;
+    """
 
-      CREATE OR REPLACE TRIGGER trg_after_insert_sensor_reading
-      AFTER INSERT ON sensor_readings
-      FOR EACH ROW
-      EXECUTE FUNCTION after_insert_sensor_reading_notify();
+    trigger_sql = """
+    CREATE OR REPLACE TRIGGER trg_after_insert_sensor_reading
+    AFTER INSERT ON sensor_readings
+    FOR EACH ROW
+    EXECUTE FUNCTION after_insert_sensor_reading_notify();
     """
 
     down_sql = "DROP FUNCTION IF EXISTS after_insert_sensor_reading_notify CASCADE"
 
     execute(sql, down_sql)
+    execute(trigger_sql)
   end
 end

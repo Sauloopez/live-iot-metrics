@@ -1,13 +1,18 @@
 defmodule LiveMetrics.Models.Area do
   use LiveMetrics.BaseSchema
-  import Ecto.Changeset
+  alias LiveMetrics.Repo
+  import Ecto.{Changeset, Query}
+  alias LiveMetrics.Models.{RecipeBatch, AreaBatch}
 
   schema "areas" do
     field :name, :string
     field :description, :string
-    has_many :nodes, LiveMetrics.Models.Nodes
 
-    timestamps()
+    has_many :area_batches, AreaBatch
+
+    many_to_many :batches, RecipeBatch,
+      join_through: AreaBatch,
+      join_keys: [area_id: :id, batch_id: :id]
   end
 
   @doc false
@@ -20,14 +25,19 @@ defmodule LiveMetrics.Models.Area do
   def create_area(attrs) do
     %LiveMetrics.Models.Area{}
     |> changeset(attrs)
-    |> LiveMetrics.Repo.insert()
+    |> Repo.insert()
   end
 
-  def add_node(area, nodes) do
-    area
-    |> LiveMetrics.Repo.preload(:nodes)
-    |> cast(%{}, [])
-    |> put_assoc(:nodes, nodes)
-    |> LiveMetrics.Repo.update()
+  def find_all_sorted_by_name do
+    __MODULE__
+    |> order_by(:name)
+    |> Repo.all()
+  end
+
+  def find_area_with_recipes(area_id) do
+    __MODULE__
+    |> where(id: ^area_id)
+    |> preload(batches: :recipe)
+    |> Repo.one()
   end
 end

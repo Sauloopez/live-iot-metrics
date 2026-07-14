@@ -65,14 +65,17 @@ defmodule LiveMetrics.Repo.Migrations.Recipes do
         RETURN NEW;
       END;
       $$;
+    """
 
-      CREATE OR REPLACE TRIGGER trg_after_update_batch_ended_at_update_sensors
-      AFTER UPDATE OF ended_at ON recipe_batch
-      FOR EACH ROW
-      EXECUTE FUNCTION after_update_batch_ended_at_update_sensors();
+    trigger_sql = """
+    CREATE OR REPLACE TRIGGER trg_after_update_batch_ended_at_update_sensors
+    AFTER UPDATE OF ended_at ON recipe_batch
+    FOR EACH ROW
+    EXECUTE FUNCTION after_update_batch_ended_at_update_sensors();
     """
 
     down_sql = "DROP FUNCTION IF EXISTS after_update_batch_ended_at_update_sensors CASCADE"
     execute after_update_recipe_ends_sql, down_sql
+    execute trigger_sql
   end
 end
