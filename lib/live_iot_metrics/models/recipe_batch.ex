@@ -9,8 +9,6 @@ defmodule LiveMetrics.Models.RecipeBatch do
 
     belongs_to :recipe, LiveMetrics.Models.Recipes, foreign_key: :recipe_id
     has_many :batch_sensors, LiveMetrics.Models.BatchSensor
-
-    timestamps()
   end
 
   def changeset(recipe_batch, attrs) do

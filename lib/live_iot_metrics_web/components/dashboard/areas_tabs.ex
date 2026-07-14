@@ -4,7 +4,8 @@ defmodule LiveMetricsWeb.Components.AreasTabs do
   attr :areas, :list, required: true
   attr :active_area_id, :any, required: true
 
-  def render(assigns) do
+  @spec tabs(Plug.Conn.t()) :: Phoenix.LiveView.Rendered.t()
+  def tabs(assigns) do
     ~H"""
     <div role="tablist" class="tabs tabs-lift">
       <%= for area <- @areas do %>

@@ -75,6 +75,12 @@ defmodule LiveMetricsWeb.Layouts do
             </.link>
           </li>
 
+          <li>
+            <.link navigate={~p"/recipes"}>
+              <.icon name="hero-cpu-chip" class="w-5 h-5" /> Recipes
+            </.link>
+          </li>
+
           <div class="mt-auto pt-4 flex justify-center">
             <.theme_toggle />
           </div>

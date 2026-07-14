@@ -19,6 +19,7 @@ defmodule LiveMetricsWeb.Router do
 
     live "/", DashboardLive
     live "/devices", DevicesLive
+    live "/recipes", RecipesLive
   end
 
   # Other scopes may use custom stacks.
