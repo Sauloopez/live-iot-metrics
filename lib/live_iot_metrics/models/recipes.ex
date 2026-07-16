@@ -1,7 +1,9 @@
 defmodule LiveMetrics.Models.Recipes do
+  require Logger
   alias LiveMetrics.Repo
   use LiveMetrics.BaseSchema
   import Ecto.Changeset
+  import Ecto.Query
 
   schema "recipes" do
     field :name, :string
@@ -40,5 +42,10 @@ defmodule LiveMetrics.Models.Recipes do
     recipe
     |> changeset(attrs)
     |> Repo.update()
+  end
+
+  def find_select_options() do
+    from(r in __MODULE__, select: {r.name, r.id})
+    |> Repo.all()
   end
 end

@@ -33,11 +33,4 @@ defmodule LiveMetrics.Models.Area do
     |> order_by(:name)
     |> Repo.all()
   end
-
-  def find_area_with_recipes(area_id) do
-    __MODULE__
-    |> where(id: ^area_id)
-    |> preload(batches: :recipe)
-    |> Repo.one()
-  end
 end

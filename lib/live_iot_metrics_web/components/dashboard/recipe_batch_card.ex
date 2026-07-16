@@ -27,11 +27,13 @@ defmodule LiveIotMetricsWeb.Dashboard.RecipeBatchCard do
     <div class="card w-96 bg-base-100 card-md shadow-sm border border-base-200">
       <div class="card-body space-y-3">
         <h2 class="card-title text-primary">
-          {@recipe_batch.recipe.name}
+          {@recipe_batch.name}
           <%= if @is_new do %>
             <span class="badge badge-secondary badge-sm">New</span>
           <% end %>
         </h2>
+
+        <h3 class="text-secondary"><%= @recipe_batch.recipe.name %></h3>
 
         <div class="text-xs bg-base-200 p-3 rounded-box space-y-1 font-mono text-base-content/80">
           <div class="flex justify-between">

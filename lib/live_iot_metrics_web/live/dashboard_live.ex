@@ -1,4 +1,6 @@
 defmodule LiveMetricsWeb.DashboardLive do
+  alias LiveIotMetricsWeb.Dashboard.StartBatchModal
+  alias LiveMetrics.Models.RecipeBatch
   alias LiveIotMetricsWeb.Dashboard.AreaRecipes
   use LiveMetricsWeb, :live_view
 
@@ -10,34 +12,35 @@ defmodule LiveMetricsWeb.DashboardLive do
   def mount(_params, _session, socket) do
     areas = Area.find_all_sorted_by_name()
 
-    active_area_id = List.first(areas) |> maybe_get_id()
-
-    active_area =
-      case active_area_id do
-        nil ->
-          nil
-
-        id ->
-          Area.find_area_with_recipes(id)
-      end
-
+    active_area = List.first(areas)
+    active_area_id =  active_area |> maybe_get_id()
+    active_batches = get_batches_in_area(active_area_id)
     socket =
       socket
       |> assign(:areas, areas)
-      |> assign(:active_area, active_area)
       |> assign(:active_area_id, active_area_id)
       |> assign(:show_add_area_modal, false)
       |> assign(:show_add_node_modal, false)
+      |> assign(:show_start_batch_modal, false)
+      |> assign(:active_batches, active_batches)
 
     {:ok, socket}
   end
 
+  defp get_batches_in_area(area_id) do
+    case area_id do
+      nil-> []
+      id -> RecipeBatch.find_all_active_by_area(id)
+    end
+  end
+
   @impl true
   def handle_event("select_area", %{"id" => id}, socket) do
+    active_batches = get_batches_in_area(id)
     socket =
       socket
-      |> assign(:active_area, Area.find_area_with_recipes(id))
       |> assign(:active_area_id, id)
+      |> assign(:active_batches, active_batches)
 
     {:noreply, socket}
   end
@@ -50,6 +53,24 @@ defmodule LiveMetricsWeb.DashboardLive do
     {:noreply, assign(socket, :show_add_area_modal, false)}
   end
 
+  def handle_event("on_start_batch", _params, socket) do
+    {:noreply, assign(socket, :show_start_batch_modal, true)}
+  end
+
+  def handle_event("close_start_batch", _, socket) do
+    {:noreply, assign(socket, :show_start_batch_modal, false)}
+  end
+
+  def handle_info({:batch_created, _}, socket) do
+    socket =
+      socket
+      |> assign(:active_batches, get_batches_in_area(socket.assigns.active_area_id))
+      |> assign(:show_start_batch_modal, false)
+      |> put_flash(:info, "Batch started successfully")
+
+    {:noreply, socket}
+  end
+
   @impl true
   def handle_info({:area_created, area}, socket) do
     new_areas = Enum.sort_by([area | socket.assigns.areas], & &1.name)
@@ -58,7 +79,7 @@ defmodule LiveMetricsWeb.DashboardLive do
       socket
       |> assign(:areas, new_areas)
       |> assign(:active_area_id, area.id)
-      |> assign(:active_area, Area.find_area_with_recipes(area.id))
+      |> assign(:active_batches, [])
       |> assign(:show_add_area_modal, false)
       |> put_flash(:info, "Area added successfully")
 
@@ -98,11 +119,19 @@ defmodule LiveMetricsWeb.DashboardLive do
           <AreasTabs.tabs areas={@areas} active_area_id={@active_area_id} />
           <%= if @active_area_id do %>
             <div class="bg-base-200 rounded-box p-6 space-y-6 mt-4">
-              <div class="flex justify-between items-center flex-wrap gap-4">
-                <h2 class="text-xl font-bold">Area Recipes</h2>
+              <div class="flex justify-end">
+                <button phx-click="on_start_batch" class="btn btn-primary btn-sm">
+                  <.icon name="hero-plus" class="w-4 h-4 mr-2" />Start Batch
+                </button>
               </div>
-              <AreaRecipes.grid area_recipes={@active_area.batches} />
+              <div class="flex justify-between items-center flex-wrap gap-4">
+                <h2 class="text-xl font-bold">Current Batches</h2>
+              </div>
+              <AreaRecipes.grid area_recipes={@active_batches} />
             </div>
+            <%= if @show_start_batch_modal do %>
+              <.live_component id="start-batch-modal" area_id={@active_area_id} module={StartBatchModal} />
+            <% end %>
           <% end %>
         <% end %>
         <%= if @show_add_area_modal do %>

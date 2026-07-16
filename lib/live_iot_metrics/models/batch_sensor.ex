@@ -12,8 +12,6 @@ defmodule LiveMetrics.Models.BatchSensor do
 
     belongs_to :recipe_batch, RecipeBatch, foreign_key: :recipe_batch_id
     belongs_to :sensor, Sensor
-
-    timestamps()
   end
 
   def changeset(property_range, attrs) do
