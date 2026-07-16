@@ -33,7 +33,7 @@ defmodule LiveIotMetricsWeb.Dashboard.RecipeBatchCard do
           <% end %>
         </h2>
 
-        <h3 class="text-secondary"><%= @recipe_batch.recipe.name %></h3>
+        <h3 class="text-secondary">{@recipe_batch.recipe.name}</h3>
 
         <div class="text-xs bg-base-200 p-3 rounded-box space-y-1 font-mono text-base-content/80">
           <div class="flex justify-between">
@@ -66,9 +66,9 @@ defmodule LiveIotMetricsWeb.Dashboard.RecipeBatchCard do
         </div>
 
         <div class="justify-end card-actions pt-2">
-          <%!-- <.link class="btn btn-primary btn-sm" navigate={~p"/recipe_batch/#{@recipe_batch.id}"}>
+          <.link class="btn btn-primary btn-sm" navigate={~p"/recipe-batch/#{@recipe_batch.id}"}>
             Go to recipe
-          </.link> --%>
+          </.link>
         </div>
       </div>
     </div>

@@ -10,7 +10,10 @@ defmodule LiveMetrics.Models.Recipes do
     field :description, :string
 
     has_many :batches, LiveMetrics.Models.RecipeBatch, foreign_key: :recipe_id
-    has_many :property_ranges, LiveMetrics.Models.PropertyRange, foreign_key: :recipe_id, on_replace: :delete
+
+    has_many :property_ranges, LiveMetrics.Models.PropertyRange,
+      foreign_key: :recipe_id,
+      on_replace: :delete
   end
 
   def changeset(recipe, attrs) do

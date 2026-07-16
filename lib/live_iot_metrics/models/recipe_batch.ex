@@ -23,13 +23,32 @@ defmodule LiveMetrics.Models.RecipeBatch do
   end
 
   def find_all_active_by_area(area_id) do
-    query = from u in __MODULE__,
-      join: b in assoc(u, :area_batch), on: u.id == b.batch_id,
-      join: r in assoc(u, :recipe), on: u.recipe_id == r.id,
-      left_join: s in assoc(u, :batch_sensors), on: u.id == s.recipe_batch_id,
-      where: b.area_id == ^area_id and is_nil(u.ended_at),
-      preload: [recipe: r, batch_sensors: s]
+    query =
+      from u in __MODULE__,
+        join: b in assoc(u, :area_batch),
+        on: u.id == b.batch_id,
+        join: r in assoc(u, :recipe),
+        on: u.recipe_id == r.id,
+        left_join: s in assoc(u, :batch_sensors),
+        on: u.id == s.recipe_batch_id,
+        where: b.area_id == ^area_id and is_nil(u.ended_at),
+        preload: [recipe: r, batch_sensors: s]
+
     Repo.all(query, [])
+  end
+
+  def find_by_id(batch_id) do
+    Repo.one(
+      from u in __MODULE__,
+        join: b in assoc(u, :area_batch),
+        on: u.id == b.batch_id,
+        join: r in assoc(u, :recipe),
+        on: u.recipe_id == r.id,
+        left_join: s in assoc(u, :batch_sensors),
+        on: u.id == s.recipe_batch_id,
+        where: u.id == ^batch_id,
+        preload: [recipe: r, batch_sensors: s]
+    )
   end
 
   def create(recipe_batch, attrs) do

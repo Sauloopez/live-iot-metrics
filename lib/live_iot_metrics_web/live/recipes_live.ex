@@ -1,5 +1,4 @@
 defmodule LiveMetricsWeb.RecipesLive do
-  require Logger
   alias LiveMetricsWeb.Components.RecipeModal
   alias LiveMetrics.Models.Recipes
   use LiveMetricsWeb, :live_view
@@ -7,10 +6,12 @@ defmodule LiveMetricsWeb.RecipesLive do
   @impl true
   def mount(_, _, socket) do
     recipes = Recipes.find_all()
-    socket = socket
-    |> assign(:recipes, recipes)
-    |> assign(:modal_is_open, false)
-    |> assign(:editing_recipe, nil)
+
+    socket =
+      socket
+      |> assign(:recipes, recipes)
+      |> assign(:modal_is_open, false)
+      |> assign(:editing_recipe, nil)
 
     {:ok, socket}
   end
@@ -30,8 +31,8 @@ defmodule LiveMetricsWeb.RecipesLive do
         <:col :let={recipe} label="Ranges">
           <%= for range <- recipe.property_ranges do %>
             <div class="badge badge-primary flex items-center my-2">
-              <span class="text-sm"><%= range.sensor_type %></span>
-              <span class="text-sm">: <%= range.min_value %> - <%= range.max_value %></span>
+              <span class="text-sm">{range.sensor_type}</span>
+              <span class="text-sm">: {range.min_value} - {range.max_value}</span>
             </div>
           <% end %>
         </:col>
@@ -45,7 +46,7 @@ defmodule LiveMetricsWeb.RecipesLive do
           </button>
         </:col>
       </.table>
-      <%=if @modal_is_open do %>
+      <%= if @modal_is_open do %>
         <.live_component id="recipe_modal" editing_recipe={@editing_recipe} module={RecipeModal} />
       <% end %>
     </LiveMetricsWeb.Layouts.app>
@@ -60,23 +61,26 @@ defmodule LiveMetricsWeb.RecipesLive do
   @impl true
   def handle_event("edit_recipe", %{"id" => id}, socket) do
     recipe = Recipes.find_by_id(id)
-    {:noreply, socket
-      |>assign(:editing_recipe, recipe)
-      |>assign( :modal_is_open, true)
-    }
+
+    {:noreply,
+     socket
+     |> assign(:editing_recipe, recipe)
+     |> assign(:modal_is_open, true)}
   end
 
   @impl true
   def handle_event("close_add_recipe", _, socket) do
-    {:noreply, socket |>assign(:editing_recipe, nil)|> assign(:modal_is_open, false)}
+    {:noreply, socket |> assign(:editing_recipe, nil) |> assign(:modal_is_open, false)}
   end
 
   @impl true
   def handle_info({:recipe_saved, _recipe}, socket) do
-    socket = socket
-    |> assign(:recipes, Recipes.find_all())
-    |> assign(:modal_is_open, false)
-    |> assign(:editing_recipe, nil)
+    socket =
+      socket
+      |> assign(:recipes, Recipes.find_all())
+      |> assign(:modal_is_open, false)
+      |> assign(:editing_recipe, nil)
+
     {:noreply, socket}
   end
 end

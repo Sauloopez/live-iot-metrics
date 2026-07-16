@@ -13,8 +13,9 @@ defmodule LiveMetricsWeb.DashboardLive do
     areas = Area.find_all_sorted_by_name()
 
     active_area = List.first(areas)
-    active_area_id =  active_area |> maybe_get_id()
+    active_area_id = active_area |> maybe_get_id()
     active_batches = get_batches_in_area(active_area_id)
+
     socket =
       socket
       |> assign(:areas, areas)
@@ -29,7 +30,7 @@ defmodule LiveMetricsWeb.DashboardLive do
 
   defp get_batches_in_area(area_id) do
     case area_id do
-      nil-> []
+      nil -> []
       id -> RecipeBatch.find_all_active_by_area(id)
     end
   end
@@ -37,6 +38,7 @@ defmodule LiveMetricsWeb.DashboardLive do
   @impl true
   def handle_event("select_area", %{"id" => id}, socket) do
     active_batches = get_batches_in_area(id)
+
     socket =
       socket
       |> assign(:active_area_id, id)
@@ -130,7 +132,11 @@ defmodule LiveMetricsWeb.DashboardLive do
               <AreaRecipes.grid area_recipes={@active_batches} />
             </div>
             <%= if @show_start_batch_modal do %>
-              <.live_component id="start-batch-modal" area_id={@active_area_id} module={StartBatchModal} />
+              <.live_component
+                id="start-batch-modal"
+                area_id={@active_area_id}
+                module={StartBatchModal}
+              />
             <% end %>
           <% end %>
         <% end %>
