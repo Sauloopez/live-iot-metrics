@@ -33,6 +33,7 @@ defmodule LiveMetrics.MetricsBuffer do
 
   @impl true
   def init(_) do
+    Logger.info("MetricsBuffer started")
     schedule_flush()
     {:ok, %{buffer: [], count: 0}}
   end

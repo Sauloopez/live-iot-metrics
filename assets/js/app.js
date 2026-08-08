@@ -25,6 +25,7 @@ import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/live_iot_metrics";
 import topbar from "../vendor/topbar";
 import { ChartHook } from "./hooks/chart_hook";
+import { WebSerialHook } from "./hooks/web_serial_hook";
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
@@ -32,7 +33,7 @@ const csrfToken = document
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
-  hooks: { ...colocatedHooks, ChartHook },
+  hooks: { ...colocatedHooks, ChartHook, WebSerialHook },
 });
 
 // Show progress bar on live navigation and form submits
