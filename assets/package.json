@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "uplot": "^1.6.32",
+    "phoenix": "../deps/phoenix",
+    "phoenix_html": "../deps/phoenix_html",
+    "phoenix_live_view": "../deps/phoenix_live_view"
+  }
+}

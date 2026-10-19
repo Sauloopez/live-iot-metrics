@@ -1,11 +1,10 @@
-defmodule LiveMetrics.SensorReading do
-  alias LiveMetrics.Repo
+defmodule LiveMetrics.Models.SensorReading do
   use Ecto.Schema
   import Ecto.Changeset
 
   @primary_key false
   schema "sensor_readings" do
-    belongs_to :sensor, LiveMetrics.Sensor, type: :binary_id
+    belongs_to :sensor, LiveMetrics.Models.Sensor, type: :binary_id
     field :value, :float
     field :reading_time, :utc_datetime_usec
   end
@@ -15,11 +14,5 @@ defmodule LiveMetrics.SensorReading do
     sensor_reading
     |> cast(attrs, [:sensor_id, :value, :reading_time])
     |> validate_required([:sensor_id, :value, :reading_time])
-  end
-
-  def create_reading(attrs) do
-    %LiveMetrics.SensorReading{}
-    |> changeset(attrs)
-    |> Repo.insert()
   end
 end
