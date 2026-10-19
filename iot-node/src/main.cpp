@@ -160,11 +160,11 @@ void loop() {
             }
             float rawValue = (float)sum / 10.0f;
 
-            // Apply precision/scaling factor depending on specific sensor types
-            float value = rawValue * sensor.precision;
+            // Apply linear calibration: value = raw * precision + offset
+            float value = sensor.apply(rawValue);
 
-            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Value: %.2f ",
-                          sensor.id, sensor.pin, value);
+            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Raw: %.1f | Value: %.2f ",
+                          sensor.id, sensor.pin, rawValue, value);
 
             // Dispatch via CoAP
             bool success = coapClient.sendMetric(

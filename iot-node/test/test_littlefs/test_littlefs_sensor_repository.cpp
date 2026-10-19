@@ -114,6 +114,26 @@ void test_remove_sensor(void) {
     TEST_ASSERT_FALSE(removedNonExistent);
 }
 
+void test_offset_and_precision_persisted(void) {
+    sensorRepo->add(SensorConfig(3, 32, "soil_moisture", -0.0588, 30000, 176.5));
+
+    std::vector<SensorConfig> loadedSensors = sensorRepo->loadAll();
+    TEST_ASSERT_EQUAL(1, loadedSensors.size());
+    TEST_ASSERT_FLOAT_WITHIN(0.00001, -0.0588, loadedSensors[0].precision);
+    TEST_ASSERT_FLOAT_WITHIN(0.0001, 176.5, loadedSensors[0].offset);
+}
+
+void test_load_legacy_file_without_offset(void) {
+    File file = LittleFS.open("/sensors.csv", "w");
+    file.println("1,34,temperature,0.08,10000");
+    file.close();
+
+    std::vector<SensorConfig> loadedSensors = sensorRepo->loadAll();
+    TEST_ASSERT_EQUAL(1, loadedSensors.size());
+    TEST_ASSERT_EQUAL(10000, loadedSensors[0].interval_ms);
+    TEST_ASSERT_FLOAT_WITHIN(0.0001, 0.0, loadedSensors[0].offset);
+}
+
 void setup() {
     delay(2000); // Allow board to settle
     UNITY_BEGIN();
@@ -122,6 +142,8 @@ void setup() {
     RUN_TEST(test_add_sensor);
     RUN_TEST(test_update_sensor);
     RUN_TEST(test_remove_sensor);
+    RUN_TEST(test_offset_and_precision_persisted);
+    RUN_TEST(test_load_legacy_file_without_offset);
     
     UNITY_END();
 }

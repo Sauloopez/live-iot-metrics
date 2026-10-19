@@ -178,6 +178,33 @@ void test_sensor_remove_command_effect(void) {
     TEST_ASSERT_EQUAL(2, sensors[0].id);
 }
 
+void test_sensor_add_with_offset(void) {
+    bool result = sensorUseCases->addSensor(3, 32, "soil_moisture", -0.0588f, 30000, 176.5f);
+    TEST_ASSERT_TRUE(result);
+
+    std::vector<SensorConfig> sensors = sensorUseCases->getSensors();
+    TEST_ASSERT_EQUAL(1, sensors.size());
+    TEST_ASSERT_FLOAT_WITHIN(0.0001, -0.0588f, sensors[0].precision);
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 176.5f, sensors[0].offset);
+}
+
+void test_sensor_offset_defaults_to_zero(void) {
+    sensorUseCases->addSensor(4, 33, "simulated", 1.0f, 5000);
+
+    std::vector<SensorConfig> sensors = sensorUseCases->getSensors();
+    TEST_ASSERT_FLOAT_WITHIN(0.0001, 0.0f, sensors[0].offset);
+}
+
+void test_sensor_config_apply(void) {
+    SensorConfig soil(3, 32, "soil_moisture", -0.0588f, 30000, 176.5f);
+    // Dry reading (~3000) maps close to 0%, wet reading (~1300) close to 100%
+    TEST_ASSERT_FLOAT_WITHIN(0.5, 0.1f, soil.apply(3000.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.5, 100.1f, soil.apply(1300.0f));
+
+    SensorConfig lm35(1, 34, "temperature", 0.0806f, 10000);
+    TEST_ASSERT_FLOAT_WITHIN(0.1, 25.0f, lm35.apply(310.0f));
+}
+
 void setup() {
     delay(2000); // Allow board to settle
     UNITY_BEGIN();
@@ -188,6 +215,9 @@ void setup() {
     RUN_TEST(test_sensor_add_invalid_pin);
     RUN_TEST(test_sensor_update_command_effect);
     RUN_TEST(test_sensor_remove_command_effect);
+    RUN_TEST(test_sensor_add_with_offset);
+    RUN_TEST(test_sensor_offset_defaults_to_zero);
+    RUN_TEST(test_sensor_config_apply);
     
     UNITY_END();
 }

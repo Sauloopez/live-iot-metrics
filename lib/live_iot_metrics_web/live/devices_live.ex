@@ -4,12 +4,55 @@ defmodule LiveMetricsWeb.DevicesLive do
   alias LiveMetrics.Models.Nodes
   alias LiveMetricsWeb.Components.NodeModal
 
+  # Reference wiring for the recommended analog sensors (ADC1 pins only, WiFi disables ADC2).
+  # value = raw * precision + offset, where raw is the 12-bit ADC reading (0..4095).
+  @sensor_presets [
+    %{
+      key: "lm35",
+      label: "LM35 temperature (°C)",
+      pin: 34,
+      type: "temperature",
+      precision: 0.0806,
+      offset: 0.0,
+      interval: 10_000
+    },
+    %{
+      key: "ldr",
+      label: "LDR light (%)",
+      pin: 35,
+      type: "light",
+      precision: 0.02442,
+      offset: 0.0,
+      interval: 10_000
+    },
+    %{
+      # Calibrated with dry raw ~3000 (0%) and in-water raw ~1300 (100%)
+      key: "soil",
+      label: "Capacitive soil moisture (%)",
+      pin: 32,
+      type: "soil_moisture",
+      precision: -0.058824,
+      offset: 176.47,
+      interval: 30_000
+    },
+    %{
+      key: "potentiometer",
+      label: "Potentiometer (raw)",
+      pin: 33,
+      type: "simulated",
+      precision: 1.0,
+      offset: 0.0,
+      interval: 5_000
+    }
+  ]
+
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(:managing_node_id, nil)
       |> assign(:show_config_modal, false)
+      |> assign(:sensor_presets, @sensor_presets)
       |> load_nodes()
 
     {:ok, socket}
@@ -108,6 +151,7 @@ defmodule LiveMetricsWeb.DevicesLive do
             id="web-serial-container"
             phx-hook="WebSerialHook"
             phx-update="ignore"
+            data-presets={Jason.encode!(@sensor_presets)}
           >
             <h3 class="font-bold text-lg mb-4">Configure Device via USB</h3>
 
@@ -159,7 +203,20 @@ defmodule LiveMetricsWeb.DevicesLive do
 
             <div class="mt-4 card bg-base-200 p-4">
               <h4 class="font-bold mb-2">Sensor Configuration</h4>
-              <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
+              <.input
+                type="select"
+                id="sensor-preset"
+                name="sensor-preset"
+                label="Preset"
+                prompt="Custom"
+                value=""
+                options={Enum.map(@sensor_presets, &{&1.label, &1.key})}
+                class="select select-sm select-bordered w-full"
+              />
+              <p class="text-xs text-base-content/60 mb-2">
+                Value sent = raw ADC (0–4095) × precision + offset
+              </p>
+              <div class="grid grid-cols-2 md:grid-cols-6 gap-2 mb-2">
                 <.input
                   type="number"
                   id="sensor-id"
@@ -186,11 +243,20 @@ defmodule LiveMetricsWeb.DevicesLive do
                 />
                 <.input
                   type="number"
-                  step="0.1"
+                  step="any"
                   id="sensor-precision"
                   name="sensor-precision"
                   label="Precision"
                   value="1.0"
+                  class="input input-sm input-bordered w-full"
+                />
+                <.input
+                  type="number"
+                  step="any"
+                  id="sensor-offset"
+                  name="sensor-offset"
+                  label="Offset"
+                  value="0.0"
                   class="input input-sm input-bordered w-full"
                 />
                 <.input

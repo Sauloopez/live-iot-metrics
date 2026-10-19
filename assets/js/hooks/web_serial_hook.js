@@ -14,6 +14,7 @@ export const WebSerialHook = {
     this.btnRemoveSensor = this.el.querySelector("#btn-remove-sensor");
     this.btnListSensors = this.el.querySelector("#btn-list-sensors");
     this.terminal = this.el.querySelector("#serial-terminal");
+    this.presets = JSON.parse(this.el.dataset.presets || "[]");
 
     this.toggleButtons = [
       this.btnSetWifi,
@@ -45,6 +46,19 @@ export const WebSerialHook = {
       this.removeSensor(id);
     });
     this.btnListSensors.addEventListener("click", () => this.listSensors());
+    this.el
+      .querySelector("#sensor-preset")
+      .addEventListener("change", (e) => this.applyPreset(e.target.value));
+  },
+
+  applyPreset(key) {
+    const preset = this.presets.find((p) => p.key === key);
+    if (!preset) return;
+    this.el.querySelector("#sensor-pin").value = preset.pin;
+    this.el.querySelector("#sensor-type").value = preset.type;
+    this.el.querySelector("#sensor-precision").value = preset.precision;
+    this.el.querySelector("#sensor-offset").value = preset.offset;
+    this.el.querySelector("#sensor-interval").value = preset.interval;
   },
 
   readSensorForm() {
@@ -53,6 +67,7 @@ export const WebSerialHook = {
       pin: parseInt(this.el.querySelector("#sensor-pin").value),
       type: this.el.querySelector("#sensor-type").value,
       precision: parseFloat(this.el.querySelector("#sensor-precision").value || "1.0"),
+      offset: parseFloat(this.el.querySelector("#sensor-offset").value || "0.0"),
       interval: parseInt(this.el.querySelector("#sensor-interval").value || "10000"),
     };
   },
@@ -88,17 +103,17 @@ export const WebSerialHook = {
     });
   },
 
-  addSensor({ id, pin, type, precision, interval }) {
+  addSensor({ id, pin, type, precision, offset, interval }) {
     return this.sendCommand({
       command: "sensor",
-      data: { action: "add", id, pin, type, precision, interval },
+      data: { action: "add", id, pin, type, precision, offset, interval },
     });
   },
 
-  updateSensor({ id, pin, type, precision, interval }) {
+  updateSensor({ id, pin, type, precision, offset, interval }) {
     return this.sendCommand({
       command: "sensor",
-      data: { action: "update", id, pin, type, precision, interval },
+      data: { action: "update", id, pin, type, precision, offset, interval },
     });
   },
 

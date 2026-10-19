@@ -59,6 +59,7 @@ private:
             int pin = doc["pin"] | -1;
             String type = doc["type"] | "unknown";
             float precision = doc["precision"] | 1.0f;
+            float offset = doc["offset"] | 0.0f;
             unsigned long interval = doc["interval"] | 10000;
             
             if (id == -1 || pin == -1) {
@@ -66,7 +67,7 @@ private:
                 return;
             }
 
-            if (sensorUseCases->addSensor(id, pin, type, precision, interval)) {
+            if (sensorUseCases->addSensor(id, pin, type, precision, interval, offset)) {
                 Serial.println("{\"status\":\"ok\",\"message\":\"Sensor added\"}");
             } else {
                 Serial.println("{\"status\":\"error\",\"message\":\"Failed to add sensor\"}");
@@ -76,6 +77,7 @@ private:
             int pin = doc["pin"] | -1;
             String type = doc["type"] | "unknown";
             float precision = doc["precision"] | 1.0f;
+            float offset = doc["offset"] | 0.0f;
             unsigned long interval = doc["interval"] | 10000;
             
             if (id == -1 || pin == -1) {
@@ -83,7 +85,7 @@ private:
                 return;
             }
 
-            if (sensorUseCases->updateSensor(id, pin, type, precision, interval)) {
+            if (sensorUseCases->updateSensor(id, pin, type, precision, interval, offset)) {
                 Serial.println("{\"status\":\"ok\",\"message\":\"Sensor updated\"}");
             } else {
                 Serial.println("{\"status\":\"error\",\"message\":\"Failed to update sensor\"}");
@@ -109,6 +111,7 @@ private:
                 s["pin"] = sensor.pin;
                 s["type"] = sensor.type;
                 s["precision"] = sensor.precision;
+                s["offset"] = sensor.offset;
                 s["interval"] = sensor.interval_ms;
             }
             
