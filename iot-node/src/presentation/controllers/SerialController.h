@@ -60,6 +60,7 @@ private:
             String type = doc["type"] | "unknown";
             float precision = doc["precision"] | 1.0f;
             float offset = doc["offset"] | 0.0f;
+            String driver = doc["driver"] | SENSOR_DRIVER_ANALOG;
             unsigned long interval = doc["interval"] | 10000;
             
             if (id == -1 || pin == -1) {
@@ -67,7 +68,12 @@ private:
                 return;
             }
 
-            if (sensorUseCases->addSensor(id, pin, type, precision, interval, offset)) {
+            if (!SensorConfig::isKnownDriver(driver)) {
+                Serial.println("{\"status\":\"error\",\"message\":\"Unknown driver\"}");
+                return;
+            }
+
+            if (sensorUseCases->addSensor(id, pin, type, precision, interval, offset, driver)) {
                 Serial.println("{\"status\":\"ok\",\"message\":\"Sensor added\"}");
             } else {
                 Serial.println("{\"status\":\"error\",\"message\":\"Failed to add sensor\"}");
@@ -78,6 +84,7 @@ private:
             String type = doc["type"] | "unknown";
             float precision = doc["precision"] | 1.0f;
             float offset = doc["offset"] | 0.0f;
+            String driver = doc["driver"] | SENSOR_DRIVER_ANALOG;
             unsigned long interval = doc["interval"] | 10000;
             
             if (id == -1 || pin == -1) {
@@ -85,7 +92,12 @@ private:
                 return;
             }
 
-            if (sensorUseCases->updateSensor(id, pin, type, precision, interval, offset)) {
+            if (!SensorConfig::isKnownDriver(driver)) {
+                Serial.println("{\"status\":\"error\",\"message\":\"Unknown driver\"}");
+                return;
+            }
+
+            if (sensorUseCases->updateSensor(id, pin, type, precision, interval, offset, driver)) {
                 Serial.println("{\"status\":\"ok\",\"message\":\"Sensor updated\"}");
             } else {
                 Serial.println("{\"status\":\"error\",\"message\":\"Failed to update sensor\"}");
@@ -101,7 +113,7 @@ private:
         } else if (action == "list") {
             auto sensors = sensorUseCases->getSensors();
             
-            DynamicJsonDocument response(1024);
+            DynamicJsonDocument response(2048);
             response["status"] = "ok";
             JsonArray data = response.createNestedArray("data");
             
@@ -112,6 +124,7 @@ private:
                 s["type"] = sensor.type;
                 s["precision"] = sensor.precision;
                 s["offset"] = sensor.offset;
+                s["driver"] = sensor.driver;
                 s["interval"] = sensor.interval_ms;
             }
             

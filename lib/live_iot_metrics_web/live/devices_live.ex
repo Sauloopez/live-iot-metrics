@@ -4,12 +4,22 @@ defmodule LiveMetricsWeb.DevicesLive do
   alias LiveMetrics.Models.Nodes
   alias LiveMetricsWeb.Components.NodeModal
 
-  # Reference wiring for the recommended analog sensors (ADC1 pins only, WiFi disables ADC2).
-  # value = raw * precision + offset, where raw is the 12-bit ADC reading (0..4095).
+  # Must match the drivers supported by the iot-node firmware (SensorConfig.h)
+  @sensor_drivers [
+    {"Analog (raw ADC 0–4095)", "analog"},
+    {"DHT22 temperature (°C)", "dht22_temp"},
+    {"DHT22 humidity (%)", "dht22_hum"},
+    {"DS18B20 temperature (°C)", "ds18b20"}
+  ]
+
+  # Reference wiring for the recommended sensors. Analog sensors must use ADC1 pins
+  # (WiFi disables ADC2). value = raw * precision + offset, where raw is the driver
+  # reading: 12-bit ADC (0..4095) for analog, physical units for digital drivers.
   @sensor_presets [
     %{
       key: "lm35",
       label: "LM35 temperature (°C)",
+      driver: "analog",
       pin: 34,
       type: "temperature",
       precision: 0.0806,
@@ -19,6 +29,7 @@ defmodule LiveMetricsWeb.DevicesLive do
     %{
       key: "ldr",
       label: "LDR light (%)",
+      driver: "analog",
       pin: 35,
       type: "light",
       precision: 0.02442,
@@ -29,6 +40,7 @@ defmodule LiveMetricsWeb.DevicesLive do
       # Calibrated with dry raw ~3000 (0%) and in-water raw ~1300 (100%)
       key: "soil",
       label: "Capacitive soil moisture (%)",
+      driver: "analog",
       pin: 32,
       type: "soil_moisture",
       precision: -0.058824,
@@ -38,11 +50,42 @@ defmodule LiveMetricsWeb.DevicesLive do
     %{
       key: "potentiometer",
       label: "Potentiometer (raw)",
+      driver: "analog",
       pin: 33,
       type: "simulated",
       precision: 1.0,
       offset: 0.0,
       interval: 5_000
+    },
+    %{
+      key: "dht22_temp",
+      label: "DHT22 air temperature (°C)",
+      driver: "dht22_temp",
+      pin: 27,
+      type: "air_temperature",
+      precision: 1.0,
+      offset: 0.0,
+      interval: 10_000
+    },
+    %{
+      key: "dht22_hum",
+      label: "DHT22 air humidity (%)",
+      driver: "dht22_hum",
+      pin: 27,
+      type: "air_humidity",
+      precision: 1.0,
+      offset: 0.0,
+      interval: 10_000
+    },
+    %{
+      key: "ds18b20",
+      label: "DS18B20 temperature (°C)",
+      driver: "ds18b20",
+      pin: 26,
+      type: "water_temperature",
+      precision: 1.0,
+      offset: 0.0,
+      interval: 10_000
     }
   ]
 
@@ -53,6 +96,7 @@ defmodule LiveMetricsWeb.DevicesLive do
       |> assign(:managing_node_id, nil)
       |> assign(:show_config_modal, false)
       |> assign(:sensor_presets, @sensor_presets)
+      |> assign(:sensor_drivers, @sensor_drivers)
       |> load_nodes()
 
     {:ok, socket}
@@ -214,9 +258,9 @@ defmodule LiveMetricsWeb.DevicesLive do
                 class="select select-sm select-bordered w-full"
               />
               <p class="text-xs text-base-content/60 mb-2">
-                Value sent = raw ADC (0–4095) × precision + offset
+                Value sent = driver reading × precision + offset (analog reading is raw ADC 0–4095)
               </p>
-              <div class="grid grid-cols-2 md:grid-cols-6 gap-2 mb-2">
+              <div class="grid grid-cols-2 md:grid-cols-7 gap-2 mb-2">
                 <.input
                   type="number"
                   id="sensor-id"
@@ -224,6 +268,15 @@ defmodule LiveMetricsWeb.DevicesLive do
                   label="ID"
                   value=""
                   class="input input-sm input-bordered w-full"
+                />
+                <.input
+                  type="select"
+                  id="sensor-driver"
+                  name="sensor-driver"
+                  label="Driver"
+                  value="analog"
+                  options={@sensor_drivers}
+                  class="select select-sm select-bordered w-full"
                 />
                 <.input
                   type="number"

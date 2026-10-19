@@ -205,6 +205,28 @@ void test_sensor_config_apply(void) {
     TEST_ASSERT_FLOAT_WITHIN(0.1, 25.0f, lm35.apply(310.0f));
 }
 
+void test_sensor_add_with_digital_driver(void) {
+    bool result = sensorUseCases->addSensor(5, 27, "air_humidity", 1.0f, 10000, 0.0f, SENSOR_DRIVER_DHT22_HUM);
+    TEST_ASSERT_TRUE(result);
+
+    std::vector<SensorConfig> sensors = sensorUseCases->getSensors();
+    TEST_ASSERT_EQUAL(1, sensors.size());
+    TEST_ASSERT_EQUAL_STRING("dht22_hum", sensors[0].driver.c_str());
+}
+
+void test_sensor_driver_defaults_to_analog(void) {
+    sensorUseCases->addSensor(4, 33, "simulated", 1.0f, 5000);
+
+    std::vector<SensorConfig> sensors = sensorUseCases->getSensors();
+    TEST_ASSERT_EQUAL_STRING("analog", sensors[0].driver.c_str());
+}
+
+void test_sensor_add_unknown_driver_rejected(void) {
+    bool result = sensorUseCases->addSensor(7, 27, "temperature", 1.0f, 10000, 0.0f, "dht11");
+    TEST_ASSERT_FALSE(result);
+    TEST_ASSERT_EQUAL(0, sensorUseCases->getSensors().size());
+}
+
 void setup() {
     delay(2000); // Allow board to settle
     UNITY_BEGIN();
@@ -218,6 +240,9 @@ void setup() {
     RUN_TEST(test_sensor_add_with_offset);
     RUN_TEST(test_sensor_offset_defaults_to_zero);
     RUN_TEST(test_sensor_config_apply);
+    RUN_TEST(test_sensor_add_with_digital_driver);
+    RUN_TEST(test_sensor_driver_defaults_to_analog);
+    RUN_TEST(test_sensor_add_unknown_driver_rejected);
     
     UNITY_END();
 }

@@ -49,14 +49,14 @@ public:
         return repository->loadAll();
     }
 
-    bool addSensor(int id, int pin, const String& type, float precision, unsigned long interval_ms, float offset = 0.0f) {
-        SensorConfig sensor(id, pin, type, precision, interval_ms, offset);
+    bool addSensor(int id, int pin, const String& type, float precision, unsigned long interval_ms, float offset = 0.0f, const String& driver = SENSOR_DRIVER_ANALOG) {
+        SensorConfig sensor(id, pin, type, precision, interval_ms, offset, driver);
         if (!sensor.isValid()) return false;
         return repository->add(sensor);
     }
 
-    bool updateSensor(int id, int pin, const String& type, float precision, unsigned long interval_ms, float offset = 0.0f) {
-        SensorConfig sensor(id, pin, type, precision, interval_ms, offset);
+    bool updateSensor(int id, int pin, const String& type, float precision, unsigned long interval_ms, float offset = 0.0f, const String& driver = SENSOR_DRIVER_ANALOG) {
+        SensorConfig sensor(id, pin, type, precision, interval_ms, offset, driver);
         if (!sensor.isValid()) return false;
         return repository->update(sensor);
     }

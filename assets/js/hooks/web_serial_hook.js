@@ -54,6 +54,7 @@ export const WebSerialHook = {
   applyPreset(key) {
     const preset = this.presets.find((p) => p.key === key);
     if (!preset) return;
+    this.el.querySelector("#sensor-driver").value = preset.driver;
     this.el.querySelector("#sensor-pin").value = preset.pin;
     this.el.querySelector("#sensor-type").value = preset.type;
     this.el.querySelector("#sensor-precision").value = preset.precision;
@@ -66,6 +67,7 @@ export const WebSerialHook = {
       id: parseInt(this.el.querySelector("#sensor-id").value),
       pin: parseInt(this.el.querySelector("#sensor-pin").value),
       type: this.el.querySelector("#sensor-type").value,
+      driver: this.el.querySelector("#sensor-driver").value,
       precision: parseFloat(this.el.querySelector("#sensor-precision").value || "1.0"),
       offset: parseFloat(this.el.querySelector("#sensor-offset").value || "0.0"),
       interval: parseInt(this.el.querySelector("#sensor-interval").value || "10000"),
@@ -103,17 +105,17 @@ export const WebSerialHook = {
     });
   },
 
-  addSensor({ id, pin, type, precision, offset, interval }) {
+  addSensor({ id, pin, type, driver, precision, offset, interval }) {
     return this.sendCommand({
       command: "sensor",
-      data: { action: "add", id, pin, type, precision, offset, interval },
+      data: { action: "add", id, pin, type, driver, precision, offset, interval },
     });
   },
 
-  updateSensor({ id, pin, type, precision, offset, interval }) {
+  updateSensor({ id, pin, type, driver, precision, offset, interval }) {
     return this.sendCommand({
       command: "sensor",
-      data: { action: "update", id, pin, type, precision, offset, interval },
+      data: { action: "update", id, pin, type, driver, precision, offset, interval },
     });
   },
 
