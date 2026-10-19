@@ -8,6 +8,8 @@ defmodule LiveMetrics.Models.Sensor do
     field :node_sensor_id, :integer
     field :sensor_type, :string
     field :precision, :float
+    field :active, :boolean, default: true
+    field :inactivated_at, :utc_datetime_usec
 
     timestamps()
   end
@@ -32,5 +34,17 @@ defmodule LiveMetrics.Models.Sensor do
       precision: precision
     })
     |> Repo.insert_or_update()
+  end
+
+  def deactivate(sensor) do
+    sensor
+    |> change(active: false, inactivated_at: DateTime.utc_now())
+    |> Repo.update()
+  end
+
+  def activate(sensor) do
+    sensor
+    |> change(active: true, inactivated_at: nil)
+    |> Repo.update()
   end
 end

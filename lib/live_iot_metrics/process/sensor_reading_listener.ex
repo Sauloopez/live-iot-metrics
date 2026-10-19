@@ -9,6 +9,7 @@ defmodule LiveMetrics.SensorReadingListener do
 
   @impl true
   def init(_opts) do
+    Logger.info("SensorReadingListener started")
     db_config = LiveMetrics.Repo.config()
     {:ok, pid} = Notifications.start_link(db_config)
     {:ok, ref} = Notifications.listen(pid, "sensor_reading")

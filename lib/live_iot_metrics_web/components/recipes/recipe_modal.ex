@@ -13,10 +13,13 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
      socket
      |> assign(assigns)
      |> assign(:recipe_struct, recipe_struct)
-     |> assign_new(:sensor_types, fn -> %{
-        "temperature" => "Temperature",
-        "npk" => "NPK",
-        "conductivity" => "Conductivity"} end)
+     |> assign_new(:sensor_types, fn ->
+       %{
+         "temperature" => "Temperature",
+         "npk" => "NPK",
+         "conductivity" => "Conductivity"
+       }
+     end)
      |> assign(:form, to_form(changeset, as: :recipe))}
   end
 
@@ -31,15 +34,24 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
           {if @recipe_struct.id, do: "Edit recipe", else: "Save recipe"}
         </h3>
         <.form for={@form} phx-submit="save" phx-change="validate" phx-target={@myself}>
-
           <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border p-4">
             <legend class="fieldset-legend">Name</legend>
-            <.input field={@form[:name]} type="text" class="input input-bordered w-full" placeholder="Name..." />
+            <.input
+              field={@form[:name]}
+              type="text"
+              class="input input-bordered w-full"
+              placeholder="Name..."
+            />
           </fieldset>
 
           <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border p-4 mt-4">
             <legend class="fieldset-legend">Description</legend>
-            <.input field={@form[:description]} type="textarea" class="textarea textarea-bordered h-24 w-full" placeholder="Description..." />
+            <.input
+              field={@form[:description]}
+              type="textarea"
+              class="textarea textarea-bordered h-24 w-full"
+              placeholder="Description..."
+            />
           </fieldset>
 
           <div class="space-y-4 bg-base-100 p-6 rounded-box shadow-sm border border-base-200 mt-4">
@@ -92,7 +104,12 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
             </div>
 
             <div class="flex justify-between items-center pt-4 border-t border-base-200">
-              <button type="button" class="btn btn-outline btn-sm" phx-click="add_range" phx-target={@myself}>
+              <button
+                type="button"
+                class="btn btn-outline btn-sm"
+                phx-click="add_range"
+                phx-target={@myself}
+              >
                 + Add Sensor Range
               </button>
             </div>
@@ -162,7 +179,6 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
 
   @impl true
   def handle_event("add_range", _params, socket) do
-
     ranges = get_current_ranges(socket)
     new_range = %{"sensor_type" => "", "min_value" => nil, "max_value" => nil}
     updated_ranges = ranges ++ [new_range]
@@ -179,10 +195,10 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
 
     ranges = get_current_ranges(socket)
 
-
     updated_ranges = List.delete_at(ranges, index)
 
     updated_params = Map.put(socket.assigns.form.params, "property_ranges", updated_ranges)
+
     changeset =
       socket.assigns.recipe_struct
       |> Recipes.changeset(updated_params)

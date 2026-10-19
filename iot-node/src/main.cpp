@@ -9,6 +9,7 @@
 // Infrastructure Services
 #include "infrastructure/coap/CoapClient.h"
 #include "infrastructure/time/NtpClient.h"
+#include "infrastructure/sensors/SensorReader.h"
 
 // Use Cases
 #include "usecases/UseCases.h"
@@ -28,6 +29,7 @@ SensorUseCases* sensorUseCases;
 SerialController* serialController;
 CoapClient coapClient;
 NtpClient ntpClient;
+SensorReader sensorReader;
 
 String macAddress = "00:00:00:00:00:00";
 unsigned long lastWifiRetry = 0;
@@ -101,7 +103,7 @@ void setup() {
     // 6. Initialize Sensors Pins
     std::vector<SensorConfig> sensors = sensorUseCases->getSensors();
     for (const auto& sensor : sensors) {
-        pinMode(sensor.pin, INPUT);
+        sensorReader.begin(sensor);
         sensorStates.push_back({sensor.id, 0});
     }
 }
@@ -140,7 +142,7 @@ void loop() {
 
         // If a new sensor was added dynamically via Serial API, initialize its state
         if (!state) {
-            pinMode(sensor.pin, INPUT);
+            sensorReader.begin(sensor);
             sensorStates.push_back({sensor.id, currentMillis});
             continue; // Skip the first immediate read to stagger it slightly
         }
@@ -152,19 +154,18 @@ void loop() {
             // Ensure CoAP client has latest config in case it was updated via Serial API
             coapClient.updateConfig(coapUseCases->getConfig());
 
-            // Read the analog value from the sensor (averaging for stability)
-            long sum = 0;
-            for (int i = 0; i < 10; i++) {
-                sum += analogRead(sensor.pin);
-                delay(2);
+            float rawValue;
+            if (!sensorReader.read(sensor, rawValue)) {
+                Serial.printf("Warning: Sensor ID: %d (Pin: %d, driver: %s) returned no valid reading.\n",
+                              sensor.id, sensor.pin, sensor.driver.c_str());
+                continue;
             }
-            float rawValue = (float)sum / 10.0f;
 
-            // Apply precision/scaling factor depending on specific sensor types
-            float value = rawValue * sensor.precision;
+            // Apply linear calibration: value = raw * precision + offset
+            float value = sensor.apply(rawValue);
 
-            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Value: %.2f ",
-                          sensor.id, sensor.pin, value);
+            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Raw: %.1f | Value: %.2f ",
+                          sensor.id, sensor.pin, rawValue, value);
 
             // Dispatch via CoAP
             bool success = coapClient.sendMetric(

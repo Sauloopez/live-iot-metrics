@@ -43,14 +43,17 @@ public:
             if (line.length() == 0) continue;
 
             std::vector<String> tokens = split(line, ',');
-            if (tokens.size() == 5) {
+            // Format: id,pin,type,precision,interval[,offset[,driver]] (trailing fields optional for older files)
+            if (tokens.size() >= 5 && tokens.size() <= 7) {
                 int id = tokens[0].toInt();
                 int pin = tokens[1].toInt();
                 String type = tokens[2];
                 float precision = tokens[3].toFloat();
                 unsigned long interval = tokens[4].toInt(); // toInt() works up to long in Arduino String
+                float offset = tokens.size() >= 6 ? tokens[5].toFloat() : 0.0f;
+                String driver = tokens.size() == 7 ? tokens[6] : String(SENSOR_DRIVER_ANALOG);
                 
-                sensors.push_back(SensorConfig(id, pin, type, precision, interval));
+                sensors.push_back(SensorConfig(id, pin, type, precision, interval, offset, driver));
             }
         }
         
@@ -71,9 +74,13 @@ public:
             file.print(",");
             file.print(s.type);
             file.print(",");
-            file.print(s.precision);
+            file.print(s.precision, 6);
             file.print(",");
-            file.println(s.interval_ms);
+            file.print(s.interval_ms);
+            file.print(",");
+            file.print(s.offset, 6);
+            file.print(",");
+            file.println(s.driver);
         }
 
         file.close();
