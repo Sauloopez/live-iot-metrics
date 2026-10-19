@@ -13,29 +13,37 @@ defmodule LiveMetrics.Repo.Migrations.SkipInactiveSensorsInBatchInsert do
             mac TEXT,
             sensor_id INTEGER,
             sensor_type TEXT,
-            precision NUMERIC,
-            value NUMERIC,
-            reading_time TEXT
+            precision DOUBLE PRECISION,
+            value DOUBLE PRECISION,
+            reading_time TIMESTAMPTZ
           )
-        ), new_nodes AS (
-          INSERT INTO nodes(name, mac)
-          SELECT DISTINCT(x.mac, x.mac) FROM typed_entries
-          ON CONFLICT (mac, name) DO NOTHING
-          RETURNING *
-        ), new_sensors AS (
-          INSERT INTO sensors (node_id, node_sensor_id, sensor_type, precision)
-          SELECT y.id, x.sensor_id, x.sensor_type, x.precision
-          FROM typed_entries
-          JOIN new_nodes y ON x.mac = y.mac
+        ), upserted_nodes AS (
+          -- DO UPDATE (instead of DO NOTHING) so existing nodes are returned too
+          INSERT INTO nodes (id, name, mac)
+          SELECT gen_random_uuid(), e.mac, e.mac
+          FROM (SELECT DISTINCT mac FROM typed_entries) e
+          ON CONFLICT (mac) DO UPDATE SET updated_at = now()
+          RETURNING id, mac
+        ), upserted_sensors AS (
+          -- One row per node sensor: a batch may hold several readings of the same sensor
+          INSERT INTO sensors (id, node_id, node_sensor_id, sensor_type, precision)
+          SELECT DISTINCT ON (n.id, e.sensor_id)
+            gen_random_uuid(), n.id, e.sensor_id, e.sensor_type, e.precision
+          FROM typed_entries e
+          JOIN upserted_nodes n ON n.mac = e.mac
+          ORDER BY n.id, e.sensor_id, e.reading_time DESC
           ON CONFLICT (node_id, node_sensor_id) DO UPDATE SET
-            sensor_type = x.sensor_type,
-            precision = x.precision
-          RETURNING *
-        ) INSERT INTO sensor_readings (sensor_id, value, reading_time)
-        SELECT y.id, x.value, x.reading_time
-        FROM typed_entries
-        JOIN new_sensors y ON x.sensor_id = y.node_sensor_id
-        WHERE y.active;
+            sensor_type = EXCLUDED.sensor_type,
+            precision = EXCLUDED.precision,
+            updated_at = now()
+          RETURNING id, node_id, node_sensor_id, active
+        )
+        INSERT INTO sensor_readings (sensor_id, value, reading_time)
+        SELECT s.id, e.value, e.reading_time
+        FROM typed_entries e
+        JOIN upserted_nodes n ON n.mac = e.mac
+        JOIN upserted_sensors s ON s.node_id = n.id AND s.node_sensor_id = e.sensor_id
+        WHERE s.active;
 
         RETURN;
       END;
@@ -57,28 +65,36 @@ defmodule LiveMetrics.Repo.Migrations.SkipInactiveSensorsInBatchInsert do
             mac TEXT,
             sensor_id INTEGER,
             sensor_type TEXT,
-            precision NUMERIC,
-            value NUMERIC,
-            reading_time TEXT
+            precision DOUBLE PRECISION,
+            value DOUBLE PRECISION,
+            reading_time TIMESTAMPTZ
           )
-        ), new_nodes AS (
-          INSERT INTO nodes(name, mac)
-          SELECT DISTINCT(x.mac, x.mac) FROM typed_entries
-          ON CONFLICT (mac, name) DO NOTHING
-          RETURNING *
-        ), new_sensors AS (
-          INSERT INTO sensors (node_id, node_sensor_id, sensor_type, precision)
-          SELECT y.id, x.sensor_id, x.sensor_type, x.precision
-          FROM typed_entries
-          JOIN new_nodes y ON x.mac = y.mac
+        ), upserted_nodes AS (
+          -- DO UPDATE (instead of DO NOTHING) so existing nodes are returned too
+          INSERT INTO nodes (id, name, mac)
+          SELECT gen_random_uuid(), e.mac, e.mac
+          FROM (SELECT DISTINCT mac FROM typed_entries) e
+          ON CONFLICT (mac) DO UPDATE SET updated_at = now()
+          RETURNING id, mac
+        ), upserted_sensors AS (
+          -- One row per node sensor: a batch may hold several readings of the same sensor
+          INSERT INTO sensors (id, node_id, node_sensor_id, sensor_type, precision)
+          SELECT DISTINCT ON (n.id, e.sensor_id)
+            gen_random_uuid(), n.id, e.sensor_id, e.sensor_type, e.precision
+          FROM typed_entries e
+          JOIN upserted_nodes n ON n.mac = e.mac
+          ORDER BY n.id, e.sensor_id, e.reading_time DESC
           ON CONFLICT (node_id, node_sensor_id) DO UPDATE SET
-            sensor_type = x.sensor_type,
-            precision = x.precision
-          RETURNING *
-        ) INSERT INTO sensor_readings (sensor_id, value, reading_time)
-        SELECT y.id, x.value, x.reading_time
-        FROM typed_entries
-        JOIN new_sensors y ON x.sensor_id = y.node_sensor_id;
+            sensor_type = EXCLUDED.sensor_type,
+            precision = EXCLUDED.precision,
+            updated_at = now()
+          RETURNING id, node_id, node_sensor_id
+        )
+        INSERT INTO sensor_readings (sensor_id, value, reading_time)
+        SELECT s.id, e.value, e.reading_time
+        FROM typed_entries e
+        JOIN upserted_nodes n ON n.mac = e.mac
+        JOIN upserted_sensors s ON s.node_id = n.id AND s.node_sensor_id = e.sensor_id;
 
         RETURN;
       END;

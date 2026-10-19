@@ -9,7 +9,7 @@ config :live_iot_metrics, LiveMetrics.Repo,
   username: "root",
   password: "secure-password",
   hostname: "localhost",
-  database: "metrics",
+  database: "metrics_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 

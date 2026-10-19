@@ -294,6 +294,9 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
                                 module={LiveIotMetricsWeb.SensorLiveChart}
                                 sensor_id={sensor_assoc.sensor.id}
                                 interval={:last_hour}
+                                label={sensor_assoc.sensor.sensor_type}
+                                range_min={sensor_assoc.min_value}
+                                range_max={sensor_assoc.max_value}
                               />
                             </div>
                           <% end %>
