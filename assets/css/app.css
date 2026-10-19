@@ -106,3 +106,44 @@
 }
 
 /* This file is for your main application CSS */
+
+/* Chart tokens (read by assets/js/hooks/chart_hook.js). Light values by default,
+   dark values for the OS preference unless the user forced light, and for the
+   explicit dark toggle. Series/critical pair validated for CVD separation and
+   >= 3:1 contrast against both chart surfaces. */
+.viz-root {
+  --viz-surface: #fcfcfb;
+  --viz-ink: #0b0b0b;
+  --viz-ink-secondary: #52514e;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-baseline: #c3c2b7;
+  --viz-series: #2a78d6;
+  --viz-good: #0ca30c;
+  --viz-critical: #d03b3b;
+  --viz-ring: rgba(11, 11, 11, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    --viz-surface: #1a1a19;
+    --viz-ink: #f0efec;
+    --viz-ink-secondary: #c3c2b7;
+    --viz-muted: #898781;
+    --viz-grid: #2c2c2a;
+    --viz-baseline: #383835;
+    --viz-series: #3987e5;
+    --viz-ring: rgba(255, 255, 255, 0.1);
+  }
+}
+
+:root[data-theme="dark"] .viz-root {
+  --viz-surface: #1a1a19;
+  --viz-ink: #f0efec;
+  --viz-ink-secondary: #c3c2b7;
+  --viz-muted: #898781;
+  --viz-grid: #2c2c2a;
+  --viz-baseline: #383835;
+  --viz-series: #3987e5;
+  --viz-ring: rgba(255, 255, 255, 0.1);
+}

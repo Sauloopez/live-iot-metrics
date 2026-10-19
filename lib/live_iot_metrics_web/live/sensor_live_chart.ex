@@ -5,6 +5,9 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
   uses :sensor_id and :interval to fetch historical data and subscribe to real-time updates.
   :interval values are :last_hour, :last_day or :last_minute
 
+  Optional :range_min and :range_max shade the target range on the chart and flag
+  readings outside of it. :label names the series for tooltips and screen readers.
+
   """
   use LiveMetricsWeb, :live_component
   alias LiveMetrics.Repo
@@ -12,7 +15,7 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
 
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, data_points: [])}
+    {:ok, assign(socket, data_points: [], range_min: nil, range_max: nil, label: nil)}
   end
 
   @impl true
@@ -71,11 +74,14 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
   attr :sensor_id, :integer
   attr :interval, :atom
   attr :historical_data, :list, default: []
+  attr :range_min, :float, default: nil
+  attr :range_max, :float, default: nil
+  attr :label, :string, default: nil
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div id={"chart-wrapper-#{@id}"} class="chart-wrapper w-full">
+    <div id={"chart-wrapper-#{@id}"} class="chart-wrapper viz-root w-full">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2">
           <span class="relative flex h-2 w-2">
@@ -89,23 +95,42 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
         </div>
 
         <%= if last = List.last(@historical_data) do %>
-          <div class="text-right leading-tight">
-            <span class="font-mono font-bold text-lg">{last.value}</span>
-            <span class="block text-[10px] text-base-content/50">{format_time(last.time)}</span>
+          <div class="flex items-center gap-3">
+            <%= case range_status(last.value, @range_min, @range_max) do %>
+              <% :in_range -> %>
+                <span
+                  id={"chart-status-#{@id}"}
+                  class="badge badge-sm badge-success badge-soft gap-1"
+                >
+                  <.icon name="hero-check-circle-mini" class="w-3.5 h-3.5" /> In range
+                </span>
+              <% :out_of_range -> %>
+                <span id={"chart-status-#{@id}"} class="badge badge-sm badge-error badge-soft gap-1">
+                  <.icon name="hero-exclamation-triangle-mini" class="w-3.5 h-3.5" /> Out of range
+                </span>
+              <% :unknown -> %>
+            <% end %>
+            <div class="text-right leading-tight">
+              <span class="font-mono font-bold text-lg tabular-nums">{format_value(last.value)}</span>
+              <span class="block text-[10px] text-base-content/50">{format_time(last.time)}</span>
+            </div>
           </div>
         <% else %>
           <span class="badge badge-ghost badge-sm">No data</span>
         <% end %>
       </div>
 
-      <div class="relative bg-base-100 border border-base-300 rounded-box p-2">
+      <div class="relative bg-base-100 border border-base-300 rounded-box p-3 transition-shadow hover:shadow-sm">
         <div
           id={"chart-canvas-#{@id}"}
           phx-hook="ChartHook"
           phx-update="ignore"
           data-sensor-id={@sensor_id}
+          data-label={@label}
+          data-min={@range_min}
+          data-max={@range_max}
           data-readings={Jason.encode!(@historical_data)}
-          class="w-full"
+          class="relative w-full h-64"
         >
         </div>
         <div
@@ -115,9 +140,51 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
           Waiting for readings...
         </div>
       </div>
+
+      <details :if={@historical_data != []} id={"chart-table-#{@id}"} class="group mt-2">
+        <summary class="cursor-pointer select-none text-xs text-base-content/60 hover:text-base-content transition-colors">
+          View data
+        </summary>
+        <div class="mt-2 max-h-48 overflow-y-auto rounded-box border border-base-300">
+          <table class="table table-xs">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th class="text-right">Value</th>
+                <th :if={@range_min && @range_max}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={reading <- Enum.reverse(@historical_data)}>
+                <td class="font-mono">{format_time(reading.time)}</td>
+                <td class="font-mono text-right tabular-nums">{format_value(reading.value)}</td>
+                <td :if={@range_min && @range_max}>
+                  <%= if range_status(reading.value, @range_min, @range_max) == :out_of_range do %>
+                    <span class="text-error">
+                      <.icon name="hero-exclamation-triangle-mini" class="w-3.5 h-3.5" /> Out
+                    </span>
+                  <% else %>
+                    <span class="text-base-content/60">In</span>
+                  <% end %>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
     """
   end
+
+  defp range_status(value, min, max)
+       when is_number(value) and is_number(min) and is_number(max) do
+    if value < min or value > max, do: :out_of_range, else: :in_range
+  end
+
+  defp range_status(_value, _min, _max), do: :unknown
+
+  defp format_value(value) when is_float(value), do: :erlang.float_to_binary(value, decimals: 2)
+  defp format_value(value), do: to_string(value)
 
   defp format_time(iso) when is_binary(iso) do
     case DateTime.from_iso8601(iso) do
