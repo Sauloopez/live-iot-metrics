@@ -1,4 +1,4 @@
-# LiveMetrics
+# LIVE METRICS FOR AGRICULTURAL BIOPREPARATIONS
 
 Plataforma IoT para monitorear variables físicas en tiempo real. Nodos ESP32 leen sensores y envían las lecturas por **CoAP** (UDP) a un servidor **Phoenix LiveView**, que las guarda en **TimescaleDB** y las muestra en vivo en un dashboard. Las lecturas se comparan contra **recetas**: rangos mínimo/máximo por tipo de sensor que definen las condiciones ideales de un lote.
 
