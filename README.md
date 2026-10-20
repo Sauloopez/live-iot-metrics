@@ -1,6 +1,8 @@
-# LIVE METRICS FOR AGRICULTURAL BIOPREPARATIONS
+# LiveMetrics
 
-Plataforma IoT para monitorear variables físicas en tiempo real. Nodos ESP32 leen sensores y envían las lecturas por **CoAP** (UDP) a un servidor **Phoenix LiveView**, que las guarda en **TimescaleDB** y las muestra en vivo en un dashboard. Las lecturas se comparan contra **recetas**: rangos mínimo/máximo por tipo de sensor que definen las condiciones ideales de un lote.
+Plataforma IoT para monitorear en tiempo real cualquier variable física: un cultivo, un acuario, una habitación, una bodega, un proceso de laboratorio o un banco de pruebas. Nodos ESP32 leen sensores y envían las mediciones por **CoAP** (UDP) a un servidor **Phoenix LiveView**, que las guarda en **TimescaleDB** y las muestra en vivo.
+
+Cada **lectura** es un seguimiento con inicio y fin en un área, y se evalúa contra una **definición de lectura**: los rangos mínimo/máximo esperados por tipo de sensor.
 
 ```mermaid
 flowchart LR
@@ -30,15 +32,22 @@ flowchart LR
 
 ## Conceptos
 
-| Concepto   | Descripción                                                                                                                                                                   |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Nodo**   | Una ESP32. Se identifica por su MAC y se registra solo con la primera lectura que llega.                                                                                      |
-| **Sensor** | Una entrada del nodo (`id` + `type`). También se registra automáticamente. Puede activarse o desactivarse desde **Devices**; las lecturas de sensores inactivos se descartan. |
-| **Área**   | Espacio físico donde se ejecutan lotes (invernadero, bodega, acuario…).                                                                                                       |
-| **Receta** | Conjunto de rangos `min`–`max` por `sensor_type` (por ejemplo `temperature` entre 18 y 30).                                                                                   |
-| **Lote**   | Ejecución de una receta en un área, con nodos asociados cuyas lecturas se evalúan contra los rangos de la receta.                                                             |
+| Concepto                  | Descripción                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Nodo**                  | Una ESP32. Se identifica por su MAC y se registra solo con la primera medición que llega.                                                                                       |
+| **Sensor**                | Una entrada del nodo (`id` + `type`). También se registra automáticamente. Puede activarse o desactivarse desde **Devices**; las mediciones de sensores inactivos se descartan. |
+| **Medición**              | Un valor enviado por un sensor en un instante.                                                                                                                                  |
+| **Área**                  | Espacio físico donde se hacen lecturas (invernadero, bodega, acuario, laboratorio…).                                                                                            |
+| **Definición de lectura** | Conjunto de rangos `min`–`max` por `sensor_type` (por ejemplo `temperature` entre 18 y 30). Se reutiliza en varias lecturas.                                                    |
+| **Lectura**               | Seguimiento de una definición en un área durante un periodo, con nodos asociados cuyas mediciones se evalúan contra los rangos de la definición.                                |
 
-> El `type` configurado en el sensor debe coincidir exactamente con el `sensor_type` de la receta (el servidor lo normaliza a minúsculas).
+> El `type` configurado en el sensor debe coincidir exactamente con el `sensor_type` de la definición de lectura (el servidor lo normaliza a minúsculas).
+>
+> En el código y la base de datos se conservan los nombres originales: las definiciones de lectura son `recipes` y las lecturas son `recipe_batch`.
+
+## ¿Por qué referencias a recetas y lotes?
+
+Un alcance previo del proyecto era el monitoreo en tiempo real de biopreparados de agricultura ecológica, sin embargo, el resultado final del producto llevó a un alcance más allá el esperado.
 
 ## Requisitos
 
@@ -96,16 +105,17 @@ flowchart LR
 
 ### Pantallas
 
-| Ruta                | Uso                                                                      |
-| ------------------- | ------------------------------------------------------------------------ |
-| `/`                 | Dashboard: áreas, lotes en curso y lecturas en vivo                      |
-| `/devices`          | Nodos registrados, sensores (activar/desactivar) y configuración por USB |
-| `/recipes`          | Recetas y sus rangos por tipo de sensor                                  |
-| `/recipe-batch/:id` | Detalle de un lote                                                       |
+| Ruta                | Uso                                                      |
+| ------------------- | -------------------------------------------------------- |
+| `/`                 | Dashboard: áreas y lecturas en curso                     |
+| `/devices`          | Nodos registrados y sus sensores (activar/desactivar)    |
+| `/devices/setup`    | Configuración de un nodo por USB (WiFi, CoAP y sensores) |
+| `/recipes`          | Definiciones de lectura y sus rangos por tipo de sensor  |
+| `/recipe-batch/:id` | Detalle de una lectura: gráficos en vivo por sensor      |
 
 ## Firmware del nodo
 
-El firmware vive en [`iot-node/`](iot-node/) y está organizado por capas: `domain` (entidades), `usecases`, `infrastructure` (LittleFS/NVS, CoAP, NTP, lectura de sensores) y `presentation` (API serial).
+El firmware vive en [`iot-node/`](iot-node/) y está organizado por capas: `domain` (entidades), `usecases`, `infrastructure` (LittleFS/NVS, CoAP, NTP, sensores) y `presentation` (API serial).
 
 ```bash
 cd iot-node
@@ -117,15 +127,17 @@ La configuración (WiFi, servidor CoAP y sensores) se guarda en la flash del nod
 
 ## Configuración del nodo por USB
 
-Desde **Devices → Configure via USB**:
+Desde **Devices → Configure via USB** (`/devices/setup`):
 
-1. **Connect to Device** y elige el puerto de la ESP32.
-2. **WiFi Configuration**: SSID y contraseña de la red.
-3. **CoAP Target**: IP **local** de la laptop (`ip a`; no sirve `localhost`) y puerto `5683`.
-4. **Sensor Configuration**: elige un **Preset** o completa los campos a mano, asigna un **ID** único por nodo y pulsa **Add**.
+1. **Connect to device** y elige el puerto de la ESP32. La pantalla identifica el nodo por su MAC.
+2. **WiFi**: SSID y contraseña de la red. Se envían directo desde el navegador; la contraseña no pasa por el servidor.
+3. **CoAP server**: IP **local** de la laptop (`ip a`; no sirve `localhost`) y puerto `5683`.
+4. **Sensors**: elige un preset o completa los campos y pulsa **Add and send to node**. El sensor se guarda en la base de datos (que le asigna el ID) y se envía al nodo.
 5. Si el nodo ya estaba conectado a otra red, reinícialo (botón `EN`) para que use el nuevo WiFi. Los cambios de CoAP y de sensores se aplican sin reiniciar.
 
-La terminal del modal muestra los comandos enviados (`->`) y las respuestas del nodo (`<-`).
+Cada sensor muestra si el nodo coincide con la base de datos: **Synced**, **Differs** o **Not on node**. **Send all to node** reenvía los que no coinciden y **Delete all** borra todos los sensores del nodo en ambos lados. La terminal muestra los comandos enviados (`->`) y las respuestas del nodo (`<-`).
+
+> Requiere un firmware con el comando `info`. Si aparece "Could not identify the node: Unknown command", vuelve a flashear el nodo.
 
 ### API serial
 
@@ -143,34 +155,34 @@ Comandos JSON, uno por línea, a 115200 baudios:
 {"command":"sensor","data":{"action":"list"}}
 ```
 
-| Campo       | Descripción                                         | Por defecto |
-| ----------- | --------------------------------------------------- | ----------- |
-| `id`        | Identificador del sensor dentro del nodo            | requerido   |
-| `pin`       | GPIO                                                | requerido   |
-| `type`      | Nombre de la variable; debe coincidir con la receta | `unknown`   |
-| `driver`    | `analog`, `dht22_temp`, `dht22_hum`, `ds18b20`      | `analog`    |
-| `precision` | Factor multiplicador                                | `1.0`       |
-| `offset`    | Valor sumado tras multiplicar                       | `0.0`       |
-| `interval`  | Milisegundos entre lecturas                         | `10000`     |
+| Campo       | Descripción                                                        | Por defecto |
+| ----------- | ------------------------------------------------------------------ | ----------- |
+| `id`        | Identificador del sensor dentro del nodo                           | requerido   |
+| `pin`       | GPIO                                                               | requerido   |
+| `type`      | Nombre de la variable; debe coincidir con la definición de lectura | `unknown`   |
+| `driver`    | `analog`, `dht22_temp`, `dht22_hum`, `ds18b20`                     | `analog`    |
+| `precision` | Factor multiplicador                                               | `1.0`       |
+| `offset`    | Valor sumado tras multiplicar                                      | `0.0`       |
+| `interval`  | Milisegundos entre mediciones                                      | `10000`     |
 
 ## Drivers y calibración
 
-Cada lectura se calcula como:
+Cada medición se calcula como:
 
 ```
-valor = lectura_del_driver × precision + offset
+valor = valor_del_driver × precision + offset
 ```
 
-| Driver       | Lectura del driver                                              | Notas                                                                               |
+| Driver       | Valor del driver                                                | Notas                                                                               |
 | ------------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `analog`     | ADC de 12 bits, `0`–`4095` (≈ 0–3.3 V), promedio de 10 muestras | Usar **solo pines ADC1**: 32, 33, 34, 35, 36, 39. ADC2 no funciona con WiFi activo. |
 | `dht22_temp` | Temperatura en °C                                               | DHT22 / AM2302. Dos sensores pueden compartir el mismo pin (temperatura + humedad). |
 | `dht22_hum`  | Humedad relativa en %                                           | Muestreo mínimo de 2 s.                                                             |
-| `ds18b20`    | Temperatura en °C                                               | Bus 1-Wire, primer sensor del bus. Cada lectura tarda ~750 ms.                      |
+| `ds18b20`    | Temperatura en °C                                               | Bus 1-Wire, primer sensor del bus. Cada medición tarda ~750 ms.                     |
 
-Si un sensor digital no responde (desconectado o mal cableado), el nodo no envía la lectura y registra un aviso en el monitor serial.
+Si un sensor digital no responde (desconectado o mal cableado), el nodo no envía la medición y registra un aviso en el monitor serial.
 
-**Calibrar dos puntos (sensores analógicos).** Mide la lectura cruda en dos condiciones conocidas, `(raw₁, v₁)` y `(raw₂, v₂)`; para verla, pon temporalmente `precision = 1` y `offset = 0`. Luego:
+**Calibrar dos puntos (sensores analógicos).** Mide el valor crudo en dos condiciones conocidas, `(raw₁, v₁)` y `(raw₂, v₂)`; para verla, pon temporalmente `precision = 1` y `offset = 0`. Luego:
 
 ```
 precision = (v₂ − v₁) / (raw₂ − raw₁)
@@ -181,7 +193,7 @@ offset    = v₁ − raw₁ × precision
 
 ## Montajes de ejemplo
 
-Los presets del modal de configuración corresponden a estos montajes. Todos los componentes son comunes en tiendas de electrónica.
+Los presets de la pantalla de configuración corresponden a estos montajes. Son ejemplos: el sistema sirve para cualquier variable que un sensor pueda medir. Todos los componentes son comunes en tiendas de electrónica.
 
 ### 1. Planta en maceta (analógico)
 
@@ -211,7 +223,7 @@ Humedad de suelo v1.2:  VCC → 3V3 | GND → GND | AOUT → GPIO32
 - `light` va de 0 (oscuro) a 100 (luz plena); es una medida relativa, no lux.
 - `soil_moisture` asume 3000 crudo en seco (0 %) y 1300 sumergido en agua (100 %). Recalibra con tu sensor (ver [calibración](#drivers-y-calibración)).
 
-**Receta sugerida — "Albahaca":** `temperature` 18–30 · `light` 30–90 · `soil_moisture` 40–80.
+**Definición sugerida — "Albahaca":** `temperature` 18–30 · `light` 30–90 · `soil_moisture` 40–80.
 
 ### 2. Ambiente de habitación o invernadero (DHT22 + luz)
 
@@ -233,7 +245,7 @@ LDR:  3V3 ── LDR ──┬── GPIO35
 | 2   | 27  | `air_humidity`    | dht22_hum  | 1.0       | 0      | 10000    |
 | 3   | 35  | `light`           | analog     | 0.02442   | 0      | 10000    |
 
-**Recetas sugeridas:**
+**Definiciones sugeridas:**
 
 - "Confort de oficina": `air_temperature` 20–26 · `air_humidity` 40–60.
 - "Germinación": `air_temperature` 22–28 · `air_humidity` 70–90 · `light` 20–70.
@@ -255,7 +267,7 @@ DS18B20:  Rojo → 3V3 | Amarillo (DQ) → GPIO26 | Negro → GND
 
 Se puede combinar con el DHT22 del montaje 2 en el mismo nodo para medir agua y aire a la vez.
 
-**Receta sugerida — "Acuario tropical":** `water_temperature` 24–28.
+**Definición sugerida — "Acuario tropical":** `water_temperature` 24–28.
 
 ### 4. Banco de pruebas (potenciómetro)
 
@@ -271,7 +283,7 @@ Potenciómetro:  extremo A → 3V3 | centro → GPIO33 | extremo B → GND
 | --- | --- | ----------- | ------ | --------- | ------ | -------- |
 | 1   | 33  | `simulated` | analog | 0.02442   | 0      | 5000     |
 
-Con `precision = 0.02442` la perilla recorre 0–100. **Receta sugerida — "Prueba":** `simulated` 30–70; gira la perilla a los extremos para salir del rango.
+Con `precision = 0.02442` la perilla recorre 0–100. **Definición sugerida — "Prueba":** `simulated` 30–70; gira la perilla a los extremos para salir del rango.
 
 ### Pines recomendados
 
@@ -297,17 +309,17 @@ Los nodos envían `POST coap://<servidor>:5683/metrics` (mensaje confirmable, `a
 | `p`   | Precisión configurada    |
 | `v`   | Valor ya calibrado       |
 
-El servidor agrupa lecturas en `MetricsBuffer` (lotes de 10 o cada segundo) y las inserta en TimescaleDB; nodos y sensores nuevos se crean en la misma inserción.
+El servidor agrupa las mediciones en `MetricsBuffer` (grupos de 10 o cada segundo) y las inserta en TimescaleDB; nodos y sensores nuevos se crean en la misma inserción.
 
 ## Solución de problemas
 
-| Síntoma                                  | Causa probable                                                                                                                                    |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| El nodo no aparece en **Devices**        | Firewall bloqueando UDP 5683, IP de CoAP incorrecta o nodo y laptop en redes distintas. Revisa `pio device monitor`.                              |
-| Lecturas analógicas en 0 o fijas en 4095 | Pin ADC2 en uso con WiFi, cable suelto, o voltaje fuera de 0–3.3 V.                                                                               |
-| `returned no valid reading`              | DHT22/DS18B20 mal cableado o sin resistencia pull-up.                                                                                             |
-| **Connect to Device** no lista puertos   | Navegador sin Web Serial (usa Chromium), cable USB solo de carga, o falta de permisos sobre `/dev/ttyUSB*` (añade tu usuario al grupo `dialout`). |
-| Lecturas no evaluadas en el lote         | El `type` del sensor no coincide con el `sensor_type` de la receta, o el sensor está inactivo.                                                    |
+| Síntoma                                    | Causa probable                                                                                                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| El nodo no aparece en **Devices**          | Firewall bloqueando UDP 5683, IP de CoAP incorrecta o nodo y laptop en redes distintas. Revisa `pio device monitor`.                              |
+| Mediciones analógicas en 0 o fijas en 4095 | Pin ADC2 en uso con WiFi, cable suelto, o voltaje fuera de 0–3.3 V.                                                                               |
+| `returned no valid reading`                | DHT22/DS18B20 mal cableado o sin resistencia pull-up.                                                                                             |
+| **Connect to Device** no lista puertos     | Navegador sin Web Serial (usa Chromium), cable USB solo de carga, o falta de permisos sobre `/dev/ttyUSB*` (añade tu usuario al grupo `dialout`). |
+| Mediciones no evaluadas en la lectura      | El `type` del sensor no coincide con el `sensor_type` de la definición de lectura, o el sensor está inactivo.                                     |
 
 ## Desarrollo
 

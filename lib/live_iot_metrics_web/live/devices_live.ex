@@ -4,99 +4,11 @@ defmodule LiveMetricsWeb.DevicesLive do
   alias LiveMetrics.Models.Nodes
   alias LiveMetricsWeb.Components.NodeModal
 
-  # Must match the drivers supported by the iot-node firmware (SensorConfig.h)
-  @sensor_drivers [
-    {"Analog (raw ADC 0–4095)", "analog"},
-    {"DHT22 temperature (°C)", "dht22_temp"},
-    {"DHT22 humidity (%)", "dht22_hum"},
-    {"DS18B20 temperature (°C)", "ds18b20"}
-  ]
-
-  # Reference wiring for the recommended sensors. Analog sensors must use ADC1 pins
-  # (WiFi disables ADC2). value = raw * precision + offset, where raw is the driver
-  # reading: 12-bit ADC (0..4095) for analog, physical units for digital drivers.
-  @sensor_presets [
-    %{
-      key: "lm35",
-      label: "LM35 temperature (°C)",
-      driver: "analog",
-      pin: 34,
-      type: "temperature",
-      precision: 0.0806,
-      offset: 0.0,
-      interval: 10_000
-    },
-    %{
-      key: "ldr",
-      label: "LDR light (%)",
-      driver: "analog",
-      pin: 35,
-      type: "light",
-      precision: 0.02442,
-      offset: 0.0,
-      interval: 10_000
-    },
-    %{
-      # Calibrated with dry raw ~3000 (0%) and in-water raw ~1300 (100%)
-      key: "soil",
-      label: "Capacitive soil moisture (%)",
-      driver: "analog",
-      pin: 32,
-      type: "soil_moisture",
-      precision: -0.058824,
-      offset: 176.47,
-      interval: 30_000
-    },
-    %{
-      key: "potentiometer",
-      label: "Potentiometer (raw)",
-      driver: "analog",
-      pin: 33,
-      type: "simulated",
-      precision: 1.0,
-      offset: 0.0,
-      interval: 5_000
-    },
-    %{
-      key: "dht22_temp",
-      label: "DHT22 air temperature (°C)",
-      driver: "dht22_temp",
-      pin: 27,
-      type: "air_temperature",
-      precision: 1.0,
-      offset: 0.0,
-      interval: 10_000
-    },
-    %{
-      key: "dht22_hum",
-      label: "DHT22 air humidity (%)",
-      driver: "dht22_hum",
-      pin: 27,
-      type: "air_humidity",
-      precision: 1.0,
-      offset: 0.0,
-      interval: 10_000
-    },
-    %{
-      key: "ds18b20",
-      label: "DS18B20 temperature (°C)",
-      driver: "ds18b20",
-      pin: 26,
-      type: "water_temperature",
-      precision: 1.0,
-      offset: 0.0,
-      interval: 10_000
-    }
-  ]
-
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(:managing_node_id, nil)
-      |> assign(:show_config_modal, false)
-      |> assign(:sensor_presets, @sensor_presets)
-      |> assign(:sensor_drivers, @sensor_drivers)
       |> load_nodes()
 
     {:ok, socket}
@@ -115,14 +27,6 @@ defmodule LiveMetricsWeb.DevicesLive do
     {:noreply, socket |> assign(:managing_node_id, nil) |> load_nodes()}
   end
 
-  def handle_event("open_config_modal", _, socket) do
-    {:noreply, assign(socket, :show_config_modal, true)}
-  end
-
-  def handle_event("close_config_modal", _, socket) do
-    {:noreply, assign(socket, :show_config_modal, false)}
-  end
-
   defp sensor_counts_by_type(sensors) do
     sensors
     |> Enum.group_by(& &1.sensor_type)
@@ -137,9 +41,9 @@ defmodule LiveMetricsWeb.DevicesLive do
       <div class="space-y-6">
         <div class="flex justify-between items-center">
           <h1 class="text-3xl font-bold text-primary">Devices</h1>
-          <button class="btn btn-secondary btn-sm" phx-click="open_config_modal">
+          <.link id="device-setup-link" navigate={~p"/devices/setup"} class="btn btn-secondary btn-sm">
             <.icon name="hero-bolt" class="w-4 h-4 mr-2" /> Configure via USB
-          </button>
+          </.link>
         </div>
 
         <div class="bg-base-200 rounded-box p-6">
@@ -172,6 +76,7 @@ defmodule LiveMetricsWeb.DevicesLive do
               </:col>
               <:action :let={node}>
                 <button
+                  id={"manage-node-#{node.id}"}
                   class="btn btn-sm btn-ghost"
                   phx-click="manage_node"
                   phx-value-id={node.id}
@@ -187,173 +92,6 @@ defmodule LiveMetricsWeb.DevicesLive do
           <.live_component id="node-modal" module={NodeModal} node_id={@managing_node_id} />
         <% end %>
       </div>
-
-      <%= if @show_config_modal do %>
-        <dialog class="modal modal-open">
-          <div
-            class="modal-box max-w-4xl"
-            id="web-serial-container"
-            phx-hook="WebSerialHook"
-            phx-update="ignore"
-            data-presets={Jason.encode!(@sensor_presets)}
-          >
-            <h3 class="font-bold text-lg mb-4">Configure Device via USB</h3>
-
-            <div class="flex gap-4 mb-4">
-              <button id="btn-connect" class="btn btn-primary">Connect to Device</button>
-              <button id="btn-disconnect" class="btn btn-ghost" disabled>Disconnect</button>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="card bg-base-200 p-4">
-                <h4 class="font-bold mb-2">WiFi Configuration</h4>
-                <input
-                  type="text"
-                  id="wifi-ssid"
-                  placeholder="SSID"
-                  class="input input-bordered input-sm w-full mb-2"
-                />
-                <input
-                  type="password"
-                  id="wifi-pass"
-                  placeholder="Password"
-                  class="input input-bordered input-sm w-full mb-2"
-                />
-                <button id="btn-set-wifi" class="btn btn-sm btn-secondary w-full" disabled>
-                  Set WiFi
-                </button>
-              </div>
-
-              <div class="card bg-base-200 p-4">
-                <h4 class="font-bold mb-2">CoAP Target</h4>
-                <input
-                  type="text"
-                  id="coap-host"
-                  placeholder="Host IP (e.g. 192.168.1.100)"
-                  class="input input-bordered input-sm w-full mb-2"
-                />
-                <input
-                  type="number"
-                  id="coap-port"
-                  placeholder="Port (default 5683)"
-                  value="5683"
-                  class="input input-bordered input-sm w-full mb-2"
-                />
-                <button id="btn-set-coap" class="btn btn-sm btn-secondary w-full" disabled>
-                  Set CoAP
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-4 card bg-base-200 p-4">
-              <h4 class="font-bold mb-2">Sensor Configuration</h4>
-              <.input
-                type="select"
-                id="sensor-preset"
-                name="sensor-preset"
-                label="Preset"
-                prompt="Custom"
-                value=""
-                options={Enum.map(@sensor_presets, &{&1.label, &1.key})}
-                class="select select-sm select-bordered w-full"
-              />
-              <p class="text-xs text-base-content/60 mb-2">
-                Value sent = driver reading × precision + offset (analog reading is raw ADC 0–4095)
-              </p>
-              <div class="grid grid-cols-2 md:grid-cols-7 gap-2 mb-2">
-                <.input
-                  type="number"
-                  id="sensor-id"
-                  name="sensor-id"
-                  label="ID"
-                  value=""
-                  class="input input-sm input-bordered w-full"
-                />
-                <.input
-                  type="select"
-                  id="sensor-driver"
-                  name="sensor-driver"
-                  label="Driver"
-                  value="analog"
-                  options={@sensor_drivers}
-                  class="select select-sm select-bordered w-full"
-                />
-                <.input
-                  type="number"
-                  id="sensor-pin"
-                  name="sensor-pin"
-                  label="Pin"
-                  value=""
-                  class="input input-sm input-bordered w-full"
-                />
-                <.input
-                  type="text"
-                  id="sensor-type"
-                  name="sensor-type"
-                  label="Type"
-                  value=""
-                  class="input input-sm input-bordered w-full"
-                />
-                <.input
-                  type="number"
-                  step="any"
-                  id="sensor-precision"
-                  name="sensor-precision"
-                  label="Precision"
-                  value="1.0"
-                  class="input input-sm input-bordered w-full"
-                />
-                <.input
-                  type="number"
-                  step="any"
-                  id="sensor-offset"
-                  name="sensor-offset"
-                  label="Offset"
-                  value="0.0"
-                  class="input input-sm input-bordered w-full"
-                />
-                <.input
-                  type="number"
-                  id="sensor-interval"
-                  name="sensor-interval"
-                  label="Interval Reading (ms)"
-                  value="10000"
-                  class="input input-sm input-bordered w-full"
-                />
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button id="btn-add-sensor" class="btn btn-sm btn-secondary" disabled>
-                  Add
-                </button>
-                <button id="btn-update-sensor" class="btn btn-sm btn-secondary" disabled>
-                  Update
-                </button>
-                <button id="btn-remove-sensor" class="btn btn-sm btn-error btn-outline" disabled>
-                  Remove
-                </button>
-                <button id="btn-list-sensors" class="btn btn-sm btn-ghost" disabled>
-                  List Sensors
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-4 card bg-base-200 p-4">
-              <h4 class="font-bold mb-2">Terminal</h4>
-              <pre
-                id="serial-terminal"
-                class="bg-black text-green-400 p-2 h-48 overflow-y-auto text-xs rounded font-mono"
-              ></pre>
-            </div>
-
-            <div class="modal-action mt-6">
-              <button type="button" class="btn" phx-click="close_config_modal">Close</button>
-            </div>
-          </div>
-          <form method="dialog" class="modal-backdrop" phx-click="close_config_modal">
-            <button>close</button>
-          </form>
-        </dialog>
-      <% end %>
     </LiveMetricsWeb.Layouts.app>
     """
   end

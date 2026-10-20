@@ -6,7 +6,7 @@ defmodule LiveIotMetricsWeb.Dashboard.AreaRecipes do
 
   def grid(assigns) do
     ~H"""
-    <div class="grid grid-cols-4 gap-4 bg-base-200 rounded-box p-6 space-y-6 mt-4">
+    <div id="area-batches" class="grid grid-cols-4 gap-4 bg-base-200 rounded-box p-6 space-y-6 mt-4">
       <%= for batch <- @area_recipes do %>
         <RecipeBatchCard.card recipe_batch={batch} />
       <% end %>

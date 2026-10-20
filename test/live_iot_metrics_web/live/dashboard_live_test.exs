@@ -1,174 +1,115 @@
 defmodule LiveMetricsWeb.DashboardLiveTest do
-  use LiveMetricsWeb.ConnCase
+  use LiveMetricsWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
-  import Ecto.Query
+  import LiveMetrics.Fixtures
 
-  alias LiveMetrics.Models.Area
-  alias LiveMetrics.Models.Nodes
-  alias LiveMetrics.Repo
-
-  defp create_area(_) do
-    {:ok, area} = Area.create_area(%{name: "Test Area", description: "Test Description"})
-    %{area: area}
-  end
-
-  defp create_node(_) do
-    {:ok, node} = Nodes.get_or_insert("00:1A:2B:3C:4D:5E")
-    %{node: node}
-  end
-
-  defp format_mac(mac) do
-    mac |> Base.encode16() |> to_charlist() |> Enum.chunk_every(2) |> Enum.join(":")
-  end
-
-  describe "Dashboard without areas" do
-    test "renders empty state when no areas exist", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/")
-
-      assert html =~ "No Areas Yet"
-      assert html =~ "Get started by creating your first tracking area"
-      assert html =~ "Create Area"
-    end
-
-    test "can open create area modal", %{conn: conn} do
+  describe "without areas" do
+    test "shows the empty state", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert view |> element("button", "Create Area") |> render_click() =~ "Add New Area"
-      assert has_element?(view, "form[phx-submit=save_area]")
+      assert has_element?(view, "#no-areas")
+      refute has_element?(view, "#btn-start-batch")
     end
 
-    test "can create an area", %{conn: conn} do
+    test "creates the first area", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      view |> element("button", "Create Area") |> render_click()
+      view |> element("#btn-create-first-area") |> render_click()
 
-      # Submit the form
-      html =
-        view
-        |> form("form[phx-submit=save_area]", %{name: "New Area", description: "A new area"})
-        |> render_submit()
+      view
+      |> form("#add-area-form", %{name: "Greenhouse 1", description: "North side"})
+      |> render_submit()
 
-      assert html =~ "New Area"
-      refute html =~ "No Areas Yet"
+      [area] = LiveMetrics.Models.Area.find_all_sorted_by_name()
+      assert has_element?(view, "#area-tab-#{area.id}.tab-active", "Greenhouse 1")
+      refute has_element?(view, "#no-areas")
+      refute has_element?(view, "#add-area-form")
     end
   end
 
-  describe "Dashboard with areas" do
-    setup [:create_area]
+  describe "with areas and batches" do
+    setup do
+      greenhouse = area_fixture(name: "A Greenhouse")
+      nursery = area_fixture(name: "B Nursery")
+      recipe = recipe_fixture(name: "Basil", ranges: [{"light", 30, 90}])
 
-    test "renders tabs for areas", %{conn: conn, area: area} do
-      {:ok, _view, html} = live(conn, ~p"/")
+      basil = batch_fixture(greenhouse, recipe, name: "Basil batch")
+      batch_sensor_fixture(basil, sensor_fixture(node_fixture(), sensor_type: "light"))
 
-      assert html =~ area.name
-      assert html =~ "Area Devices"
+      seedlings = batch_fixture(nursery, recipe, name: "Seedlings")
+
+      %{
+        greenhouse: greenhouse,
+        nursery: nursery,
+        recipe: recipe,
+        basil: basil,
+        seedlings: seedlings
+      }
     end
 
-    test "renders area details", %{conn: conn, area: area} do
-      {:ok, _view, html} = live(conn, ~p"/")
-
-      assert html =~ area.name
-      assert html =~ "No devices assigned to this area"
-    end
-
-    test "can switch between areas", %{conn: conn, area: area1} do
-      {:ok, area2} = Area.create_area(%{name: "Second Area", description: "Second Description"})
-
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      # Initially on first area
-      assert view |> element("a.tab-active") |> render() =~ area1.name
-
-      # Switch to second area
-      html = view |> element("a", area2.name) |> render_click()
-
-      assert html =~ "tab-active"
-      assert view |> element("a.tab-active") |> render() =~ area2.name
-    end
-
-    test "can change time interval", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      assert has_element?(view, "button.btn-active[phx-value-interval=last_hour]")
-
-      _html = view |> element("button[phx-value-interval=last_day]") |> render_click()
-
-      assert has_element?(view, "button.btn-active[phx-value-interval=last_day]")
-    end
-  end
-
-  describe "Dashboard with devices" do
-    setup [:create_area, :create_node]
-
-    test "can open assign device modal", %{conn: conn, area: _area, node: node} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      assert view |> element("button", "Add Device") |> render_click() =~ "Assign Devices to Area"
-      assert has_element?(view, "form[phx-submit=save_nodes]")
-
-      # Node should be listed
-      modal_html = view |> element("form[phx-submit=save_nodes]") |> render()
-      assert modal_html =~ node.name
-      assert modal_html =~ format_mac(node.mac)
-    end
-
-    test "can assign device to area", %{conn: conn, area: _area, node: node} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      view |> element("button", "Add Device") |> render_click()
-
-      # Assign the node
-      _html =
-        view
-        |> form("form[phx-submit=save_nodes]", %{"node_ids" => [node.id]})
-        |> render_submit()
-
-      # Device should now be visible in the area view
-      assert has_element?(view, ".card", node.name)
-      assert has_element?(view, ".card", format_mac(node.mac))
-
-      # Double check database
-      updated_node = Repo.get(Nodes, node.id)
-      assert updated_node.area_id != nil
-    end
-
-    test "renders assigned devices", %{conn: conn, area: area, node: node} do
-      # Pre-assign node
-      Repo.update_all(from(n in Nodes, where: n.id == ^node.id), set: [area_id: area.id])
-
-      {:ok, _view, html} = live(conn, ~p"/")
-
-      # Should not show empty state
-      refute html =~ "No devices assigned to this area"
-
-      # Should show the device
-      assert html =~ node.name
-      assert html =~ format_mac(node.mac)
-    end
-
-    test "updates metrics via PubSub when new reading arrives", %{
+    test "shows the active batches of the first area with their sensors", %{
       conn: conn,
-      area: area,
-      node: node
+      greenhouse: greenhouse,
+      basil: basil,
+      seedlings: seedlings
     } do
-      # Pre-assign node
-      Repo.update_all(from(n in Nodes, where: n.id == ^node.id), set: [area_id: area.id])
+      {:ok, view, _html} = live(conn, ~p"/")
 
-      # Create a sensor
-      {:ok, sensor} = LiveMetrics.Models.Sensor.update_or_create(node, 1, "temperature", 0.1)
+      assert has_element?(view, "#area-tab-#{greenhouse.id}.tab-active")
+      assert has_element?(view, "#batch-card-#{basil.id}", "Basil batch")
+      # Regression: the card reads batch_sensor.sensor, which must be preloaded
+      assert has_element?(view, "#batch-card-#{basil.id}", "light")
+      refute has_element?(view, "#batch-card-#{seedlings.id}")
+    end
+
+    test "switching areas shows that area's batches", %{
+      conn: conn,
+      nursery: nursery,
+      basil: basil,
+      seedlings: seedlings
+    } do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element("#area-tab-#{nursery.id}") |> render_click()
+
+      assert has_element?(view, "#area-tab-#{nursery.id}.tab-active")
+      assert has_element?(view, "#batch-card-#{seedlings.id}")
+      refute has_element?(view, "#batch-card-#{basil.id}")
+    end
+
+    test "ended batches are not listed", %{conn: conn, basil: basil} do
+      basil
+      |> Ecto.Changeset.change(ended_at: DateTime.utc_now())
+      |> LiveMetrics.Repo.update!()
 
       {:ok, view, _html} = live(conn, ~p"/")
 
-      # Create reading, which triggers PubSub broadcast
-      {:ok, _reading} =
-        LiveMetrics.Models.SensorReading.create_reading(%{
-          sensor_id: sensor.id,
-          value: 42.5,
-          reading_time: DateTime.utc_now()
-        })
+      refute has_element?(view, "#batch-card-#{basil.id}")
+    end
 
-      # The view should automatically update to show the new value
-      assert render(view) =~ "42.5"
+    test "starts a batch in the active area", %{conn: conn, recipe: recipe} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element("#btn-start-batch") |> render_click()
+
+      view
+      |> form("#start-batch-form",
+        recipe_batch: %{name: "Mint batch", recipe_id: recipe.id, started_at: "2026-10-20T08:00"}
+      )
+      |> render_submit()
+
+      assert render(view) =~ "Reading started successfully"
+      assert has_element?(view, "#area-batches", "Mint batch")
+    end
+
+    test "a batch card opens the batch detail", %{conn: conn, basil: basil} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      {:ok, detail, _html} =
+        view |> element("#open-batch-#{basil.id}") |> render_click() |> follow_redirect(conn)
+
+      assert has_element?(detail, "#btn-attach-node")
     end
   end
 end

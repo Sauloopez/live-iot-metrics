@@ -10,6 +10,7 @@ defmodule LiveMetricsWeb.Components.AreasTabs do
     <div role="tablist" class="tabs tabs-lift">
       <%= for area <- @areas do %>
         <a
+          id={"area-tab-#{area.id}"}
           role="tab"
           class={[
             "tab tab-lg",

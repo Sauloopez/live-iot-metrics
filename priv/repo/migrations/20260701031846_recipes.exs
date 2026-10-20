@@ -60,7 +60,7 @@ defmodule LiveMetrics.Repo.Migrations.Recipes do
         IF OLD.ended_at IS DISTINCT FROM NEW.ended_at THEN
           UPDATE batch_sensors
           SET ended_at = NEW.ended_at
-          WHERE recipe_id = NEW.id;
+          WHERE recipe_batch_id = NEW.id AND ended_at IS NULL;
         END IF;
         RETURN NEW;
       END;

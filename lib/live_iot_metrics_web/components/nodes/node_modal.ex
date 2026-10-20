@@ -15,7 +15,7 @@ defmodule LiveMetricsWeb.Components.NodeModal do
   @impl true
   def render(assigns) do
     ~H"""
-    <dialog class="modal modal-open">
+    <dialog id="node-modal" class="modal modal-open">
       <div class="modal-box max-w-3xl">
         <h3 class="font-bold text-lg">
           <.icon name="hero-cpu-chip" class="w-5 h-5 inline-block mr-1 text-secondary" />
@@ -58,6 +58,7 @@ defmodule LiveMetricsWeb.Components.NodeModal do
             <:action :let={sensor}>
               <%= if sensor.active do %>
                 <button
+                  id={"toggle-sensor-#{sensor.id}"}
                   class="btn btn-xs btn-error btn-outline"
                   phx-click="toggle_sensor"
                   phx-value-sensor-id={sensor.id}
@@ -68,6 +69,7 @@ defmodule LiveMetricsWeb.Components.NodeModal do
                 </button>
               <% else %>
                 <button
+                  id={"toggle-sensor-#{sensor.id}"}
                   class="btn btn-xs btn-success btn-outline"
                   phx-click="toggle_sensor"
                   phx-value-sensor-id={sensor.id}

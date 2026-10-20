@@ -20,6 +20,16 @@ const timeFormat = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
+const secondsTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  timeZone: "UTC",
+});
+
+// Short windows (fast sensors) need seconds on the axis, otherwise every tick reads the same
+const SHORT_SPAN_MS = 3 * 60 * 1000;
+
 const fullTimeFormat = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
@@ -95,14 +105,15 @@ const crosshairPlugin = {
 
 export const ChartHook = {
   mounted() {
-    this.sensorId = this.el.dataset.sensorId;
+    this.chartId = this.el.dataset.chartId;
     this.label = this.el.dataset.label || "";
     this.readRange();
 
     const readings = JSON.parse(this.el.dataset.readings || "[]");
     this.points = readings
       .map((r) => ({ x: new Date(r.time).getTime(), y: r.value }))
-      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+      .sort((a, b) => a.x - b.x);
 
     this.canvas = document.createElement("canvas");
     this.canvas.setAttribute("role", "img");
@@ -113,15 +124,18 @@ export const ChartHook = {
     this.describe();
 
     this.handleEvent("new-data", (payload) => {
-      if (String(payload.sensor_id) !== this.sensorId) return;
+      // The same sensor may have several charts on the page; the server targets one
+      if (payload.chart_id !== this.chartId) return;
 
       const point = { x: new Date(payload.time).getTime(), y: payload.value };
       if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
 
-      this.points.push(point);
+      this.insertPoint(point);
       if (this.points.length > MAX_POINTS) this.points.shift();
 
-      this.chart.update();
+      // No animation for live data: shifting the window would make every point tween
+      // from its neighbour's old position and the whole line would jump
+      this.chart.update("none");
       this.describe();
     });
 
@@ -150,6 +164,17 @@ export const ChartHook = {
     this.themeObserver?.disconnect();
     this.colorScheme?.removeEventListener("change", this.onSchemeChange);
     this.chart?.destroy();
+  },
+
+  // Readings can arrive out of order; keep points sorted by time so the line never loops back
+  insertPoint(point) {
+    let i = this.points.length;
+    while (i > 0 && this.points[i - 1].x > point.x) i--;
+    if (i > 0 && this.points[i - 1].x === point.x) {
+      this.points[i - 1] = point;
+    } else {
+      this.points.splice(i, 0, point);
+    }
   },
 
   readRange() {
@@ -197,7 +222,7 @@ export const ChartHook = {
     const latest = last ? `, latest ${formatValue(last.y)}` : ", no readings yet";
     this.canvas.setAttribute(
       "aria-label",
-      `${this.label} readings over time${range}${latest}`,
+      `${this.label} measurements over time${range}${latest}`,
     );
   },
 
@@ -206,6 +231,14 @@ export const ChartHook = {
     const hook = this;
     const isLast = (ctx) => ctx.dataIndex === hook.points.length - 1;
     const flagged = (ctx) => hook.outOfRange(ctx.raw?.y);
+    // Mark where an excursion starts or ends (and isolated spikes) instead of every
+    // out-of-range reading; the red segments already show the whole excursion
+    const excursionEdge = (ctx) => {
+      if (!flagged(ctx)) return false;
+      const prev = hook.points[ctx.dataIndex - 1];
+      const next = hook.points[ctx.dataIndex + 1];
+      return (prev && !hook.outOfRange(prev.y)) || (next && !hook.outOfRange(next.y));
+    };
 
     return {
       type: "line",
@@ -236,7 +269,7 @@ export const ChartHook = {
               return gradient;
             },
             // Points only where they carry meaning: out-of-range readings and the live tip
-            pointRadius: (ctx) => (flagged(ctx) || isLast(ctx) ? 4 : 0),
+            pointRadius: (ctx) => (excursionEdge(ctx) || isLast(ctx) ? 4 : 0),
             pointHoverRadius: 6,
             pointHitRadius: 12,
             pointBackgroundColor: (ctx) => (flagged(ctx) ? c.critical : c.series),
@@ -267,13 +300,21 @@ export const ChartHook = {
               font: { size: 11 },
               maxTicksLimit: 6,
               maxRotation: 0,
-              callback: (value) => timeFormat.format(new Date(value)),
+              callback(value) {
+                const format = this.max - this.min < SHORT_SPAN_MS ? secondsTimeFormat : timeFormat;
+                return format.format(new Date(value));
+              },
             },
           },
           y: {
             suggestedMin: this.min ?? undefined,
             suggestedMax: this.max ?? undefined,
-            grace: "5%",
+            // 5% breathing room, but never push a non-negative series below zero
+            afterDataLimits(scale) {
+              const pad = (scale.max - scale.min) * 0.05 || 1;
+              scale.max += pad;
+              scale.min = scale.min >= 0 ? Math.max(0, scale.min - pad) : scale.min - pad;
+            },
             border: { display: false },
             grid: { color: c.grid, lineWidth: 1, drawTicks: false },
             ticks: {

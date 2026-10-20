@@ -6,7 +6,7 @@ defmodule LiveMetricsWeb.Components.AddAreaModal do
     <dialog class="modal modal-open">
       <div class="modal-box">
         <h3 class="font-bold text-lg mb-4">Add New Area</h3>
-        <form phx-submit="save_area" phx-target={@myself}>
+        <form id="add-area-form" phx-submit="save_area" phx-target={@myself}>
           <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border p-4">
             <legend class="fieldset-legend">Name</legend>
             <input

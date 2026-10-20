@@ -18,6 +18,7 @@ void setUp(void) {
     LittleFS.remove("/sensors.csv");
     
     sensorRepo = new LittleFsSensorRepository();
+    sensorRepo->begin();
 }
 
 void tearDown(void) {

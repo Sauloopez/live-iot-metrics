@@ -31,16 +31,19 @@ defmodule LiveMetrics.Models.RecipeBatch do
         on: u.recipe_id == r.id,
         left_join: s in assoc(u, :batch_sensors),
         on: u.id == s.recipe_batch_id,
+        left_join: bs in assoc(s, :sensor),
+        on: bs.id == s.sensor_id,
         where: b.area_id == ^area_id and is_nil(u.ended_at),
-        preload: [recipe: r, batch_sensors: s]
+        preload: [recipe: r, batch_sensors: {s, sensor: bs}]
 
     Repo.all(query, [])
   end
 
+  # Left join: batches whose area link is missing must still open, so they can be deleted
   def find_by_id(batch_id) do
     Repo.one(
       from u in __MODULE__,
-        join: b in assoc(u, :area_batch),
+        left_join: b in assoc(u, :area_batch),
         on: u.id == b.batch_id,
         join: r in assoc(u, :recipe),
         on: u.recipe_id == r.id,
@@ -58,9 +61,27 @@ defmodule LiveMetrics.Models.RecipeBatch do
     )
   end
 
+  @doc "Every batch (active or ended) created from the recipe, with its area if any."
+  def list_by_recipe(recipe_id) do
+    Repo.all(
+      from b in __MODULE__,
+        left_join: ab in assoc(b, :area_batch),
+        left_join: a in assoc(ab, :area),
+        where: b.recipe_id == ^recipe_id,
+        order_by: [desc: b.started_at],
+        preload: [area_batch: {ab, area: a}]
+    )
+  end
+
   def create(recipe_batch, attrs) do
     recipe_batch
     |> changeset(attrs)
     |> Repo.insert()
   end
+
+  @doc """
+  Deletes the batch with its area link and tracked sensors (cascaded by the database).
+  Sensor readings belong to the sensors, so they are kept.
+  """
+  def delete(%__MODULE__{} = recipe_batch), do: Repo.delete(recipe_batch)
 end

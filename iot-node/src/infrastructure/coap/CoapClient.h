@@ -117,7 +117,7 @@ public:
     }
 
     static void callback(CoapPacket& p, IPAddress ad, int a) {
-        Serial.printf("Coap message %d response code %d: ", p.messageid, p.code);
+        Serial.printf("Coap message %d response code %d\n", p.messageid, p.code);
     }
 
     void loop() {

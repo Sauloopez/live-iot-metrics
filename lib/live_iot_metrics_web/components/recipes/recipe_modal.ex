@@ -1,8 +1,10 @@
 defmodule LiveMetricsWeb.Components.RecipeModal do
   require Logger
-  alias LiveMetrics.Models.PropertyRange
-  alias LiveMetrics.Models.Recipes
+  alias LiveMetrics.Models.{PropertyRange, Recipes, Sensor}
   use LiveMetricsWeb, :live_component
+
+  # Types used by the firmware presets (see the README mounting examples)
+  @common_sensor_types ~w(temperature air_temperature air_humidity light soil_moisture water_temperature simulated)
 
   @impl true
   def update(assigns, socket) do
@@ -14,11 +16,7 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
      |> assign(assigns)
      |> assign(:recipe_struct, recipe_struct)
      |> assign_new(:sensor_types, fn ->
-       %{
-         "temperature" => "Temperature",
-         "npk" => "NPK",
-         "conductivity" => "Conductivity"
-       }
+       Enum.uniq(@common_sensor_types ++ Sensor.distinct_types())
      end)
      |> assign(:form, to_form(changeset, as: :recipe))}
   end
@@ -31,9 +29,15 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
     <dialog class="modal modal-open">
       <div class="modal-box max-w-3xl">
         <h3 class="font-bold text-lg mb-4">
-          {if @recipe_struct.id, do: "Edit recipe", else: "Save recipe"}
+          {if @recipe_struct.id, do: "Edit reading definition", else: "New reading definition"}
         </h3>
-        <.form for={@form} phx-submit="save" phx-change="validate" phx-target={@myself}>
+        <.form
+          for={@form}
+          id="recipe-form"
+          phx-submit="save"
+          phx-change="validate"
+          phx-target={@myself}
+        >
           <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-full border p-4">
             <legend class="fieldset-legend">Name</legend>
             <.input
@@ -56,6 +60,13 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
 
           <div class="space-y-4 bg-base-100 p-6 rounded-box shadow-sm border border-base-200 mt-4">
             <h3 class="text-lg font-bold text-base-content mb-2">Sensor Thresholds Configuration</h3>
+            <p class="text-xs text-base-content/60 -mt-1">
+              Type must match the sensor <span class="font-mono">type</span>
+              configured on the node. Pick a suggestion or write a new one.
+            </p>
+            <datalist id="recipe-sensor-types">
+              <option :for={type <- @sensor_types} value={type} />
+            </datalist>
             <div class="space-y-3">
               <.inputs_for :let={range_field} field={@form[:property_ranges]}>
                 <div class="flex flex-col md:flex-row gap-4 items-end bg-base-200 p-4 rounded-xl relative group">
@@ -63,10 +74,12 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
                   <div class="w-full">
                     <.input
                       field={range_field[:sensor_type]}
-                      type="select"
+                      type="text"
                       label="Sensor Type"
-                      options={[{"Pick a type...", ""}] ++ Map.to_list(@sensor_types)}
-                      class="select select-bordered w-full"
+                      list="recipe-sensor-types"
+                      placeholder="e.g. soil_moisture"
+                      autocomplete="off"
+                      class="input input-bordered w-full font-mono"
                     />
                   </div>
 
@@ -74,7 +87,7 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
                     <.input
                       field={range_field[:min_value]}
                       type="number"
-                      step="0.1"
+                      step="any"
                       label="Min Value"
                       placeholder="0.0"
                     />
@@ -84,7 +97,7 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
                     <.input
                       field={range_field[:max_value]}
                       type="number"
-                      step="0.1"
+                      step="any"
                       label="Max Value"
                       placeholder="100.0"
                     />
@@ -105,6 +118,7 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
 
             <div class="flex justify-between items-center pt-4 border-t border-base-200">
               <button
+                id="btn-add-range"
                 type="button"
                 class="btn btn-outline btn-sm"
                 phx-click="add_range"

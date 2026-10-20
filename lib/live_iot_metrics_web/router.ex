@@ -19,6 +19,7 @@ defmodule LiveMetricsWeb.Router do
 
     live "/", DashboardLive
     live "/devices", DevicesLive
+    live "/devices/setup", DeviceSetupLive
     live "/recipes", RecipesLive
     live "/recipe-batch/:id", RecipeBatchLive
   end

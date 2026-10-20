@@ -20,7 +20,7 @@ defmodule LiveMetricsWeb.Components.AttachNodeModal do
     ~H"""
     <dialog class="modal modal-open">
       <div class="modal-box max-w-4xl">
-        <h3 class="font-bold text-lg mb-4">Attach Node to Batch</h3>
+        <h3 class="font-bold text-lg mb-4">Attach node to reading</h3>
 
         <div :if={@error} class="alert alert-error mb-4">
           <.icon name="hero-exclamation-circle" class="w-5 h-5" /> <span>{@error}</span>
@@ -29,13 +29,13 @@ defmodule LiveMetricsWeb.Components.AttachNodeModal do
         <%= if Enum.empty?(@available_nodes) do %>
           <div class="alert alert-info">
             <.icon name="hero-information-circle" class="w-6 h-6" />
-            <span>No available nodes. Every node is already tracked by an active batch.</span>
+            <span>No available nodes. Every node is already tracked by an active reading.</span>
           </div>
           <div class="modal-action">
             <button type="button" class="btn" phx-click="close_attach_node">Close</button>
           </div>
         <% else %>
-          <form phx-change="select_node" phx-target={@myself}>
+          <form id="select-node-form" phx-change="select_node" phx-target={@myself}>
             <div class="fieldset mb-4">
               <label for="attach-node-select">
                 <span class="label mb-1">Node</span>
@@ -52,7 +52,7 @@ defmodule LiveMetricsWeb.Components.AttachNodeModal do
           </form>
 
           <%= if @selected_node do %>
-            <form phx-submit="attach" phx-target={@myself}>
+            <form id="attach-node-form" phx-submit="attach" phx-target={@myself}>
               <%= if Enum.empty?(@selected_node.sensors) do %>
                 <p class="text-center text-base-content/60 py-4">This node has no sensors.</p>
               <% else %>
@@ -76,11 +76,11 @@ defmodule LiveMetricsWeb.Components.AttachNodeModal do
                     <span class="capitalize">{sensor.sensor_type}</span>
                   </:col>
                   <:col :let={{sensor, _range}} label="Precision">{sensor.precision}</:col>
-                  <:col :let={{_sensor, range}} label="Recipe Range">
+                  <:col :let={{_sensor, range}} label="Definition range">
                     <%= if range do %>
                       <span class="font-mono">{range.min_value} - {range.max_value}</span>
                     <% else %>
-                      <span class="text-base-content/50 italic">No range in recipe</span>
+                      <span class="text-base-content/50 italic">No range in definition</span>
                     <% end %>
                   </:col>
                 </.table>
@@ -140,7 +140,7 @@ defmodule LiveMetricsWeb.Components.AttachNodeModal do
     case entries do
       [] ->
         {:noreply,
-         assign(socket, :error, "Select at least one sensor with a matching recipe range.")}
+         assign(socket, :error, "Select at least one sensor with a matching definition range.")}
 
       entries ->
         case BatchSensor.create_many(entries) do
