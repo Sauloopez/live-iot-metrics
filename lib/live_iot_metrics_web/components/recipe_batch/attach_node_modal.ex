@@ -35,7 +35,7 @@ defmodule LiveMetricsWeb.Components.AttachNodeModal do
             <button type="button" class="btn" phx-click="close_attach_node">Close</button>
           </div>
         <% else %>
-          <form phx-change="select_node" phx-target={@myself}>
+          <form id="select-node-form" phx-change="select_node" phx-target={@myself}>
             <div class="fieldset mb-4">
               <label for="attach-node-select">
                 <span class="label mb-1">Node</span>
@@ -52,7 +52,7 @@ defmodule LiveMetricsWeb.Components.AttachNodeModal do
           </form>
 
           <%= if @selected_node do %>
-            <form phx-submit="attach" phx-target={@myself}>
+            <form id="attach-node-form" phx-submit="attach" phx-target={@myself}>
               <%= if Enum.empty?(@selected_node.sensors) do %>
                 <p class="text-center text-base-content/60 py-4">This node has no sensors.</p>
               <% else %>

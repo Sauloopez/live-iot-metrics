@@ -102,18 +102,20 @@ defmodule LiveMetricsWeb.DashboardLive do
       <div class="">
         <div class="flex justify-between items-center mb-10">
           <h1 class="text-3xl font-bold text-primary">Dashboard</h1>
-          <button phx-click="show_add_area" class="btn btn-primary btn-sm">
+          <button id="btn-add-area" phx-click="show_add_area" class="btn btn-primary btn-sm">
             <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add Area
           </button>
         </div>
 
         <%= if Enum.empty?(@areas) do %>
-          <div class="hero bg-base-200 rounded-box py-12">
+          <div id="no-areas" class="hero bg-base-200 rounded-box py-12">
             <div class="hero-content text-center">
               <div class="max-w-md">
                 <h1 class="text-2xl font-bold">No Areas Yet</h1>
                 <p class="py-6">Get started by creating your first tracking area.</p>
-                <button phx-click="show_add_area" class="btn btn-primary">Create Area</button>
+                <button id="btn-create-first-area" phx-click="show_add_area" class="btn btn-primary">
+                  Create Area
+                </button>
               </div>
             </div>
           </div>
@@ -122,7 +124,7 @@ defmodule LiveMetricsWeb.DashboardLive do
           <%= if @active_area_id do %>
             <div class="bg-base-200 rounded-box p-6 space-y-6 mt-4">
               <div class="flex justify-end">
-                <button phx-click="on_start_batch" class="btn btn-primary btn-sm">
+                <button id="btn-start-batch" phx-click="on_start_batch" class="btn btn-primary btn-sm">
                   <.icon name="hero-plus" class="w-4 h-4 mr-2" />Start Batch
                 </button>
               </div>

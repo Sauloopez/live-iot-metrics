@@ -36,9 +36,12 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
   def handle_info({:new_reading, reading}, socket) do
     sensor_id = reading["sensor_id"]
 
-    if Enum.any?(socket.assigns.active_sensors, &(&1.id == sensor_id)) do
+    # A sensor can appear more than once in a batch (detached and attached again),
+    # so charts are keyed by batch sensor and only the active ones receive readings
+    for batch_sensor <- socket.assigns.active_batch_sensors,
+        batch_sensor.sensor_id == sensor_id do
       send_update(LiveIotMetricsWeb.SensorLiveChart,
-        id: "sensor-chart-#{sensor_id}",
+        id: "sensor-chart-#{batch_sensor.id}",
         new_reading: reading
       )
     end
@@ -95,16 +98,14 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
   defp assign_batch(socket, batch) do
     socket
     |> assign(:batch, batch)
-    |> assign(:active_sensors, active_sensors(batch))
+    |> assign(:active_batch_sensors, active_batch_sensors(batch))
     |> assign(:sensors_by_node, group_by_node(batch))
   end
 
-  defp active_sensors(nil), do: []
+  defp active_batch_sensors(nil), do: []
 
-  defp active_sensors(batch) do
-    batch.batch_sensors
-    |> Enum.filter(&(is_nil(&1.ended_at) and &1.sensor))
-    |> Enum.map(& &1.sensor)
+  defp active_batch_sensors(batch) do
+    Enum.filter(batch.batch_sensors, &(is_nil(&1.ended_at) and &1.sensor))
   end
 
   defp group_by_node(nil), do: []
@@ -135,7 +136,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
         </div>
 
         <%= if is_nil(@batch) do %>
-          <div class="alert alert-error shadow-lg mt-4">
+          <div id="batch-not-found" class="alert alert-error shadow-lg mt-4">
             <div>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -214,7 +215,11 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
                 <h2 class="card-title text-primary">
                   <.icon name="hero-cpu-chip" class="w-6 h-6" /> Tracked Nodes
                 </h2>
-                <button phx-click="show_attach_node" class="btn btn-primary btn-sm">
+                <button
+                  id="btn-attach-node"
+                  phx-click="show_attach_node"
+                  class="btn btn-primary btn-sm"
+                >
                   <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Attach Node
                 </button>
               </div>
@@ -227,7 +232,10 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
               <% else %>
                 <div class="space-y-6">
                   <%= for {node, batch_sensors} <- @sensors_by_node do %>
-                    <div class="card bg-base-100 border border-base-300">
+                    <div
+                      id={"tracked-node-#{node && node.id}"}
+                      class="card bg-base-100 border border-base-300"
+                    >
                       <div class="card-body">
                         <div class="flex justify-between items-center">
                           <h3 class="font-bold text-lg">
@@ -249,6 +257,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
                               <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-1" /> Manage
                             </button>
                             <button
+                              id={"detach-node-#{node.id}"}
                               phx-click="detach_node"
                               phx-value-node-id={node.id}
                               data-confirm="Stop tracking every sensor of this node for the batch?"
@@ -290,13 +299,14 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
                               </div>
 
                               <.live_component
-                                id={"sensor-chart-#{sensor_assoc.sensor.id}"}
+                                id={"sensor-chart-#{sensor_assoc.id}"}
                                 module={LiveIotMetricsWeb.SensorLiveChart}
                                 sensor_id={sensor_assoc.sensor.id}
                                 interval={:last_hour}
                                 label={sensor_assoc.sensor.sensor_type}
                                 range_min={sensor_assoc.min_value}
                                 range_max={sensor_assoc.max_value}
+                                ended_at={sensor_assoc.ended_at}
                               />
                             </div>
                           <% end %>

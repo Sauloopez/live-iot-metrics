@@ -7,6 +7,7 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
 
   Optional :range_min and :range_max shade the target range on the chart and flag
   readings outside of it. :label names the series for tooltips and screen readers.
+  When :ended_at is set the chart shows the interval up to that moment and is not live.
 
   """
   use LiveMetricsWeb, :live_component
@@ -15,12 +16,13 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
 
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, data_points: [], range_min: nil, range_max: nil, label: nil)}
+    {:ok,
+     assign(socket, data_points: [], range_min: nil, range_max: nil, label: nil, ended_at: nil)}
   end
 
   @impl true
   def update(%{sensor_id: sensor_id, interval: interval} = assigns, socket) do
-    now = DateTime.utc_now(:second)
+    now = assigns[:ended_at] || DateTime.utc_now(:second)
 
     start_time =
       case interval do
@@ -61,14 +63,16 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
       sensor_id: reading["sensor_id"]
     }
 
+    # Readings can arrive out of order (batches are inserted concurrently)
     updated_data =
       (current_data ++ [new_point])
+      |> Enum.sort_by(&reading_time_key/1)
       |> Enum.take(-50)
 
     {:ok,
      socket
      |> assign(:historical_data, updated_data)
-     |> push_event("new-data", new_point)}
+     |> push_event("new-data", Map.put(new_point, :chart_id, socket.assigns.id))}
   end
 
   attr :sensor_id, :integer
@@ -77,13 +81,14 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
   attr :range_min, :float, default: nil
   attr :range_max, :float, default: nil
   attr :label, :string, default: nil
+  attr :ended_at, :any, default: nil
 
   @impl true
   def render(assigns) do
     ~H"""
     <div id={"chart-wrapper-#{@id}"} class="chart-wrapper viz-root w-full">
       <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2">
+        <div :if={is_nil(@ended_at)} class="flex items-center gap-2">
           <span class="relative flex h-2 w-2">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75">
             </span>
@@ -91,6 +96,12 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
           </span>
           <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
             Live
+          </span>
+        </div>
+        <div :if={@ended_at} class="flex items-center gap-2 text-base-content/50">
+          <.icon name="hero-stop-circle-mini" class="w-4 h-4" />
+          <span class="text-xs font-semibold uppercase tracking-wide">
+            Stopped {Calendar.strftime(@ended_at, "%H:%M:%S")}
           </span>
         </div>
 
@@ -126,6 +137,7 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
           phx-hook="ChartHook"
           phx-update="ignore"
           data-sensor-id={@sensor_id}
+          data-chart-id={@id}
           data-label={@label}
           data-min={@range_min}
           data-max={@range_max}
@@ -141,7 +153,12 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
         </div>
       </div>
 
-      <details :if={@historical_data != []} id={"chart-table-#{@id}"} class="group mt-2">
+      <details
+        :if={@historical_data != []}
+        id={"chart-table-#{@id}"}
+        class="group mt-2"
+        phx-mounted={JS.ignore_attributes(["open"])}
+      >
         <summary class="cursor-pointer select-none text-xs text-base-content/60 hover:text-base-content transition-colors">
           View data
         </summary>
@@ -175,6 +192,15 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
     </div>
     """
   end
+
+  defp reading_time_key(%{time: time}) when is_binary(time) do
+    case DateTime.from_iso8601(time) do
+      {:ok, dt, _offset} -> DateTime.to_unix(dt, :microsecond)
+      _error -> 0
+    end
+  end
+
+  defp reading_time_key(_reading), do: 0
 
   defp range_status(value, min, max)
        when is_number(value) and is_number(min) and is_number(max) do

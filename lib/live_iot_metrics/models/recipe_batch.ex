@@ -31,8 +31,10 @@ defmodule LiveMetrics.Models.RecipeBatch do
         on: u.recipe_id == r.id,
         left_join: s in assoc(u, :batch_sensors),
         on: u.id == s.recipe_batch_id,
+        left_join: bs in assoc(s, :sensor),
+        on: bs.id == s.sensor_id,
         where: b.area_id == ^area_id and is_nil(u.ended_at),
-        preload: [recipe: r, batch_sensors: s]
+        preload: [recipe: r, batch_sensors: {s, sensor: bs}]
 
     Repo.all(query, [])
   end

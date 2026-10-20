@@ -1,80 +1,58 @@
 defmodule LiveMetricsWeb.DevicesLiveTest do
-  use LiveMetricsWeb.ConnCase
+  use LiveMetricsWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import LiveMetrics.Fixtures
 
-  alias LiveMetrics.Models.Area
-  alias LiveMetrics.Models.Nodes
-  alias LiveMetrics.Models.Sensor
-
-  defp create_fixtures(_) do
-    {:ok, area} = Area.create_area(%{name: "Main Area", description: "The main area"})
-    {:ok, node} = Nodes.get_or_insert("AA:BB:CC:DD:EE:FF")
-    {:ok, sensor} = Sensor.update_or_create(node, 1, "temperature", 0.1)
-
-    %{area: area, node: node, sensor: sensor}
+  test "shows an empty state without nodes", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/devices")
+    refute has_element?(view, "#nodes-table")
   end
 
-  defp format_mac(mac) do
-    mac |> Base.encode16() |> to_charlist() |> Enum.chunk_every(2) |> Enum.join(":")
+  describe "with nodes" do
+    setup do
+      node = node_fixture(name: "Greenhouse node")
+      light = sensor_fixture(node, node_sensor_id: 1, sensor_type: "light")
+      sensor_fixture(node, node_sensor_id: 2, sensor_type: "light")
+      sensor_fixture(node, node_sensor_id: 3, sensor_type: "soil_moisture")
+      %{node: node, light: light}
+    end
+
+    test "lists nodes with their MAC and sensor counts by type", %{conn: conn, node: node} do
+      {:ok, view, _html} = live(conn, ~p"/devices")
+
+      assert has_element?(view, "#nodes-table", "Greenhouse node")
+      assert has_element?(view, "#nodes-table", node.mac)
+      assert has_element?(view, "#nodes-table", "light: 2")
+      assert has_element?(view, "#nodes-table", "soil_moisture: 1")
+    end
+
+    test "manage shows the node sensors and toggles recording", %{
+      conn: conn,
+      node: node,
+      light: light
+    } do
+      {:ok, view, _html} = live(conn, ~p"/devices")
+
+      view |> element("#manage-node-#{node.id}") |> render_click()
+      assert has_element?(view, "#node-modal", node.mac)
+      assert has_element?(view, "#node-modal-sensors", "soil_moisture")
+
+      view |> element("#toggle-sensor-#{light.id}") |> render_click()
+      assert has_element?(view, "#node-modal-sensors", "Inactive since")
+      refute LiveMetrics.Repo.reload!(light).active
+
+      view |> element("#toggle-sensor-#{light.id}") |> render_click()
+      assert LiveMetrics.Repo.reload!(light).active
+    end
   end
 
-  describe "Devices page" do
-    setup [:create_fixtures]
+  test "configure via USB opens the device setup screen", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/devices")
 
-    test "renders devices list", %{conn: conn, node: node} do
-      {:ok, _view, html} = live(conn, ~p"/devices")
+    {:ok, setup, _html} =
+      view |> element("#device-setup-link") |> render_click() |> follow_redirect(conn)
 
-      assert html =~ "Devices"
-      assert html =~ node.name
-      assert html =~ format_mac(node.mac)
-      assert html =~ "Unassigned"
-    end
-
-    test "opens edit modal and shows sensor info", %{conn: conn, node: _node, sensor: sensor} do
-      {:ok, view, _html} = live(conn, ~p"/devices")
-
-      html = view |> element("button", "Edit") |> render_click()
-
-      assert html =~ "Edit Device"
-      assert html =~ "MAC Address (Read-only)"
-      # Sensor info should be visible
-      assert html =~ sensor.sensor_type
-      assert html =~ to_string(sensor.node_sensor_id)
-    end
-
-    test "validates form data", %{conn: conn, node: _node} do
-      {:ok, view, _html} = live(conn, ~p"/devices")
-
-      view |> element("button", "Edit") |> render_click()
-
-      html =
-        view
-        |> form("form[phx-change=validate]", %{"nodes" => %{"name" => ""}})
-        |> render_change()
-
-      assert html =~ "can&#39;t be blank"
-    end
-
-    test "updates device successfully", %{conn: conn, area: area} do
-      {:ok, view, _html} = live(conn, ~p"/devices")
-
-      view |> element("button", "Edit") |> render_click()
-
-      html =
-        view
-        |> form("form[phx-submit=save]", %{
-          "nodes" => %{
-            "name" => "Updated Node Name",
-            "description" => "New description",
-            "area_id" => area.id
-          }
-        })
-        |> render_submit()
-
-      assert html =~ "Updated Node Name"
-      assert html =~ "New description"
-      assert html =~ area.name
-    end
+    assert has_element?(setup, "#btn-connect")
   end
 end

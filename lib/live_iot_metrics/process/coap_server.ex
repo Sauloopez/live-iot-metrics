@@ -136,6 +136,10 @@ defmodule LiveMetrics.CoapServer do
         is_float(sensor_precision) ->
           sensor_precision
 
+        # ArduinoJson serializes whole floats such as 1.0 as the integer 1
+        is_integer(sensor_precision) ->
+          sensor_precision * 1.0
+
         true ->
           0.0
       end

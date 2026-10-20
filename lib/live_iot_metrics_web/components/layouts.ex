@@ -47,7 +47,7 @@ defmodule LiveMetricsWeb.Layouts do
           </div>
           <div class="flex-1 px-2 mx-2 font-bold text-primary">LiveMetrics</div>
         </div>
-
+        
     <!-- Main content -->
         <main class="flex-1 overflow-y-auto bg-base-100">
           <div class="p-4 sm:p-6 lg:p-8 mx-auto space-y-4 h-full">
@@ -55,7 +55,7 @@ defmodule LiveMetricsWeb.Layouts do
           </div>
         </main>
       </div>
-
+      
     <!-- Sidebar -->
       <div class="drawer-side z-40">
         <label for="app-drawer" aria-label="close sidebar" class="drawer-overlay"></label>

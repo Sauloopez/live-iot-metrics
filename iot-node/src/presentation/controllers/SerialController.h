@@ -10,6 +10,7 @@ private:
     WifiUseCases* wifiUseCases;
     CoapUseCases* coapUseCases;
     SensorUseCases* sensorUseCases;
+    String deviceMac;
 
     void handleWifiCommand(JsonObject& doc) {
         String action = doc["action"] | "";
@@ -136,8 +137,8 @@ private:
     }
 
 public:
-    SerialController(WifiUseCases* wifi, CoapUseCases* coap, SensorUseCases* sensor) 
-        : wifiUseCases(wifi), coapUseCases(coap), sensorUseCases(sensor) {}
+    SerialController(WifiUseCases* wifi, CoapUseCases* coap, SensorUseCases* sensor, const String& mac = "")
+        : wifiUseCases(wifi), coapUseCases(coap), sensorUseCases(sensor), deviceMac(mac) {}
 
     void begin() {
         Serial.println("{\"status\":\"ok\",\"message\":\"Serial controller ready\"}");
@@ -171,6 +172,9 @@ public:
                 handleSensorCommand(data);
             } else if (command == "ping") {
                 Serial.println("{\"status\":\"ok\",\"message\":\"pong\"}");
+            } else if (command == "info") {
+                // Identifies the node to the web setup screen (same MAC sent in CoAP payloads)
+                Serial.printf("{\"status\":\"ok\",\"mac\":\"%s\"}\n", deviceMac.c_str());
             } else {
                 Serial.println("{\"status\":\"error\",\"message\":\"Unknown command\"}");
             }

@@ -22,7 +22,7 @@ defmodule LiveMetricsWeb.RecipesLive do
     <LiveMetricsWeb.Layouts.app flash={@flash}>
       <div class="flex justify-between items-center mb-10">
         <h1 class="text-3xl font-bold text-primary">Recipes</h1>
-        <button phx-click="show_add_recipe" class="btn btn-primary btn-sm">
+        <button id="btn-add-recipe" phx-click="show_add_recipe" class="btn btn-primary btn-sm">
           <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add Recipe
         </button>
       </div>
@@ -38,6 +38,7 @@ defmodule LiveMetricsWeb.RecipesLive do
         </:col>
         <:col :let={recipe} label="Actions">
           <button
+            id={"edit-recipe-#{recipe.id}"}
             class="btn btn-sm btn-ghost"
             phx-click="edit_recipe"
             phx-value-id={recipe.id}

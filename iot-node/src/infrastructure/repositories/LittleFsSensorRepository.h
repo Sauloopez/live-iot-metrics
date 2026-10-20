@@ -23,10 +23,16 @@ private:
     }
 
 public:
-    LittleFsSensorRepository() {
+    LittleFsSensorRepository() {}
+
+    // Must run from setup(), not from a global constructor: formatting a corrupted
+    // partition needs the FreeRTOS scheduler, which is not running before setup().
+    bool begin() {
         if (!LittleFS.begin(true)) {
             Serial.println("LittleFS Mount Failed");
+            return false;
         }
+        return true;
     }
 
     std::vector<SensorConfig> loadAll() override {

@@ -2,6 +2,7 @@ defmodule LiveMetrics.Models.Sensor do
   alias LiveMetrics.Repo
   use LiveMetrics.BaseSchema
   import Ecto.Changeset
+  import Ecto.Query
 
   schema "sensors" do
     belongs_to :node, LiveMetrics.Models.Nodes
@@ -34,6 +35,12 @@ defmodule LiveMetrics.Models.Sensor do
       precision: precision
     })
     |> Repo.insert_or_update()
+  end
+
+  @doc "Distinct sensor types reported by the nodes, sorted by name."
+  def distinct_types do
+    from(s in __MODULE__, distinct: true, select: s.sensor_type, order_by: s.sensor_type)
+    |> Repo.all()
   end
 
   def deactivate(sensor) do

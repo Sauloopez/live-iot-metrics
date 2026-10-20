@@ -33,7 +33,13 @@ defmodule LiveIotMetricsWeb.Dashboard.StartBatchModal do
         <h3 class="font-bold text-lg mb-4">
           Start Recipe Batch
         </h3>
-        <.form for={@form} phx-submit="save" phx-change="validate" phx-target={@myself}>
+        <.form
+          for={@form}
+          id="start-batch-form"
+          phx-submit="save"
+          phx-change="validate"
+          phx-target={@myself}
+        >
           <.input
             field={@form[:name]}
             type="text"

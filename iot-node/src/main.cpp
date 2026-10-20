@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <vector>
+#include <esp_mac.h>
 
 // Infrastructure Repositories
 #include "infrastructure/repositories/NvsRepositories.h"
@@ -82,13 +83,24 @@ void setup() {
     delay(1000);
     Serial.println("\n--- Starting IoT Node ---");
 
+    // Mount the sensor config filesystem (formats it if it is corrupted)
+    sensorRepo.begin();
+
     // 2. Instantiate Use Cases
     wifiUseCases = new WifiUseCases(&wifiRepo);
     coapUseCases = new CoapUseCases(&coapRepo);
     sensorUseCases = new SensorUseCases(&sensorRepo);
 
+    // The station MAC is readable before WiFi starts, so the serial API can report it right away
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    macAddress = macStr;
+
     // 3. Instantiate Controllers
-    serialController = new SerialController(wifiUseCases, coapUseCases, sensorUseCases);
+    serialController = new SerialController(wifiUseCases, coapUseCases, sensorUseCases, macAddress);
 
     // Announce serial API is ready
     Serial.println("{\"status\":\"ok\",\"message\":\"Serial controller ready\"}");
@@ -164,7 +176,7 @@ void loop() {
             // Apply linear calibration: value = raw * precision + offset
             float value = sensor.apply(rawValue);
 
-            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Raw: %.1f | Value: %.2f ",
+            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Raw: %.1f | Value: %.2f\n",
                           sensor.id, sensor.pin, rawValue, value);
 
             // Dispatch via CoAP
