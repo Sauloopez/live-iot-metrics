@@ -45,7 +45,7 @@ defmodule LiveMetricsWeb.RecipeBatchLiveTest do
 
     view |> form("#attach-node-form", %{sensor_ids: [light.id]}) |> render_submit()
 
-    assert render(view) =~ "Node attached to batch"
+    assert render(view) =~ "Node attached to reading"
     assert has_element?(view, "#tracked-node-#{node.id}", "Greenhouse node")
 
     assert [%{sensor_id: sensor_id, min_value: 30.0, max_value: 90.0}] =
@@ -135,7 +135,7 @@ defmodule LiveMetricsWeb.RecipeBatchLiveTest do
         |> render_click()
         |> follow_redirect(conn, ~p"/")
 
-      assert html =~ "Batch &quot;Basil batch&quot; deleted"
+      assert html =~ "Reading &quot;Basil batch&quot; deleted"
       refute has_element?(dashboard, "#batch-card-#{batch.id}")
       assert LiveMetrics.Models.RecipeBatch.find_by_id(batch.id) == nil
       assert LiveMetrics.Repo.aggregate(LiveMetrics.Models.SensorReading, :count) == 1

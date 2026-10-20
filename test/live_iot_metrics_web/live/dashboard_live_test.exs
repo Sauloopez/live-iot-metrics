@@ -99,7 +99,7 @@ defmodule LiveMetricsWeb.DashboardLiveTest do
       )
       |> render_submit()
 
-      assert render(view) =~ "Batch started successfully"
+      assert render(view) =~ "Reading started successfully"
       assert has_element?(view, "#area-batches", "Mint batch")
     end
 

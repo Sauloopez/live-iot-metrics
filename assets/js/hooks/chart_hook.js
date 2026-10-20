@@ -222,7 +222,7 @@ export const ChartHook = {
     const latest = last ? `, latest ${formatValue(last.y)}` : ", no readings yet";
     this.canvas.setAttribute(
       "aria-label",
-      `${this.label} readings over time${range}${latest}`,
+      `${this.label} measurements over time${range}${latest}`,
     );
   },
 

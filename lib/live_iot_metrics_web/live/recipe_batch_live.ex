@@ -56,7 +56,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
       socket
       |> assign_batch(RecipeBatch.find_by_id(socket.assigns.recipe_batch_id))
       |> assign(:show_attach_node_modal, false)
-      |> put_flash(:info, "Node attached to batch")
+      |> put_flash(:info, "Node attached to reading")
 
     {:noreply, socket}
   end
@@ -79,14 +79,14 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
       {:ok, _} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Batch \"#{batch.name}\" deleted")
+         |> put_flash(:info, "Reading \"#{batch.name}\" deleted")
          |> push_navigate(to: ~p"/")}
 
       {:error, _changeset} ->
         {:noreply,
          socket
          |> assign(:confirm_delete?, false)
-         |> put_flash(:error, "Could not delete the batch")}
+         |> put_flash(:error, "Could not delete the reading")}
     end
   end
 
@@ -120,7 +120,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
     socket =
       socket
       |> assign_batch(RecipeBatch.find_by_id(socket.assigns.recipe_batch_id))
-      |> put_flash(:info, "Node detached from batch")
+      |> put_flash(:info, "Node detached from reading")
 
     {:noreply, socket}
   end
@@ -162,7 +162,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
           <.link navigate={~p"/"} class="btn btn-sm btn-ghost">
             <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back
           </.link>
-          <h1 class="text-3xl font-bold text-primary">Batch Details</h1>
+          <h1 class="text-3xl font-bold text-primary">Reading details</h1>
           <div class="flex-1"></div>
           <.button
             :if={@batch}
@@ -171,7 +171,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
             class="btn btn-sm btn-error btn-outline"
             phx-click="ask_delete_batch"
           >
-            <.icon name="hero-trash" class="w-4 h-4" /> Delete batch
+            <.icon name="hero-trash" class="w-4 h-4" /> Delete reading
           </.button>
         </div>
 
@@ -191,7 +191,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
                   d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <span>Batch not found.</span>
+              <span>Reading not found.</span>
             </div>
           </div>
         <% else %>
@@ -206,7 +206,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
 
                 <div class="space-y-3">
                   <div class="flex justify-between items-center">
-                    <span class="text-base-content/70">Recipe</span>
+                    <span class="text-base-content/70">Definition</span>
                     <span class="font-semibold badge badge-secondary">{@batch.recipe.name}</span>
                   </div>
 
@@ -241,7 +241,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
             <div class="card bg-base-200 shadow-xl border border-base-300">
               <div class="card-body">
                 <h2 class="card-title text-primary">
-                  <.icon name="hero-information-circle" class="w-6 h-6" /> Recipe Description
+                  <.icon name="hero-information-circle" class="w-6 h-6" /> Definition description
                 </h2>
                 <div class="divider mt-0 mb-2"></div>
                 <p class="text-base-content/80 whitespace-pre-wrap">{@batch.recipe.description}</p>
@@ -267,7 +267,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
 
               <%= if Enum.empty?(@sensors_by_node) do %>
                 <div class="text-center py-8 text-base-content/60">
-                  <p>No nodes are currently tracked for this batch.</p>
+                  <p>No nodes are currently tracked for this reading.</p>
                 </div>
               <% else %>
                 <div class="space-y-6">
@@ -300,7 +300,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
                               id={"detach-node-#{node.id}"}
                               phx-click="detach_node"
                               phx-value-node-id={node.id}
-                              data-confirm="Stop tracking every sensor of this node for the batch?"
+                              data-confirm="Stop tracking every sensor of this node for this reading?"
                               class="btn btn-error btn-outline btn-sm"
                             >
                               <.icon name="hero-link-slash" class="w-4 h-4 mr-1" /> Detach Node
@@ -331,10 +331,10 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
 
                               <div class="flex flex-wrap gap-2 text-xs mb-2">
                                 <span class="badge badge-outline">
-                                  Batch range: {sensor_assoc.min_value} - {sensor_assoc.max_value}
+                                  Reading range: {sensor_assoc.min_value} - {sensor_assoc.max_value}
                                 </span>
                                 <span :if={range} class="badge badge-info badge-outline">
-                                  Recipe range: {range.min_value} - {range.max_value}
+                                  Definition range: {range.min_value} - {range.max_value}
                                 </span>
                               </div>
 
@@ -377,15 +377,15 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
       <ConfirmDialog.confirm_dialog
         :if={@batch && @confirm_delete?}
         id="delete-batch-dialog"
-        title={"Delete batch \"#{@batch.name}\"?"}
+        title={"Delete reading \"#{@batch.name}\"?"}
         on_confirm="delete_batch"
         on_cancel="cancel_delete_batch"
       >
         <p>
-          The batch and its {length(@batch.batch_sensors)} sensor tracking record(s) will be deleted.
+          The reading and its {length(@batch.batch_sensors)} sensor tracking record(s) will be deleted.
           This can not be undone.
         </p>
-        <p>Sensor readings are kept: they belong to the sensors, not to the batch.</p>
+        <p>Sensor measurements are kept: they belong to the sensors, not to the reading.</p>
       </ConfirmDialog.confirm_dialog>
     </LiveMetricsWeb.Layouts.app>
     """

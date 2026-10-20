@@ -22,13 +22,13 @@ defmodule LiveMetricsWeb.RecipesLive do
     ~H"""
     <LiveMetricsWeb.Layouts.app flash={@flash}>
       <div class="flex justify-between items-center mb-10">
-        <h1 class="text-3xl font-bold text-primary">Recipes</h1>
+        <h1 class="text-3xl font-bold text-primary">Reading definitions</h1>
         <button id="btn-add-recipe" phx-click="show_add_recipe" class="btn btn-primary btn-sm">
-          <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add Recipe
+          <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add definition
         </button>
       </div>
       <.table id="recipes_table" rows={@recipes}>
-        <:col :let={recipe} label="Recipe name">{recipe.name}</:col>
+        <:col :let={recipe} label="Name">{recipe.name}</:col>
         <:col :let={recipe} label="Ranges">
           <%= for range <- recipe.property_ranges do %>
             <div class="badge badge-primary flex items-center my-2">
@@ -67,8 +67,8 @@ defmodule LiveMetricsWeb.RecipesLive do
         id="delete-recipe-dialog"
         title={
           if @deleting.batch_count > 0,
-            do: "Recipe in use",
-            else: "Delete recipe \"#{@deleting.recipe.name}\"?"
+            do: "Definition in use",
+            else: "Delete definition \"#{@deleting.recipe.name}\"?"
         }
         on_confirm="delete_recipe"
         on_cancel="cancel_delete_recipe"
@@ -77,8 +77,8 @@ defmodule LiveMetricsWeb.RecipesLive do
         <%= if @deleting.batch_count > 0 do %>
           <p>
             <span class="font-semibold">{@deleting.recipe.name}</span>
-            is used by {@deleting.batch_count} production batch(es).
-            Delete those batches first; deleting the recipe would remove them too.
+            is used by {@deleting.batch_count} reading(s).
+            Delete those readings first; deleting the definition would remove them too.
           </p>
           <ul
             id="recipe-batches-in-use"
@@ -169,13 +169,17 @@ defmodule LiveMetricsWeb.RecipesLive do
     socket =
       case Recipes.delete(recipe) do
         {:ok, _} ->
-          put_flash(socket, :info, "Recipe \"#{recipe.name}\" deleted")
+          put_flash(socket, :info, "Definition \"#{recipe.name}\" deleted")
 
         {:error, {:in_use, count}} ->
-          put_flash(socket, :error, "Recipe is used by #{count} batch(es) and was not deleted")
+          put_flash(
+            socket,
+            :error,
+            "Definition is used by #{count} reading(s) and was not deleted"
+          )
 
         {:error, _changeset} ->
-          put_flash(socket, :error, "Could not delete the recipe")
+          put_flash(socket, :error, "Could not delete the definition")
       end
 
     {:noreply,

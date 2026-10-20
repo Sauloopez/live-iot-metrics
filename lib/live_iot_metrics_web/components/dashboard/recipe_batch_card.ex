@@ -74,7 +74,7 @@ defmodule LiveIotMetricsWeb.Dashboard.RecipeBatchCard do
             class="btn btn-primary btn-sm"
             navigate={~p"/recipe-batch/#{@recipe_batch.id}"}
           >
-            Go to recipe
+            Open reading
           </.link>
         </div>
       </div>

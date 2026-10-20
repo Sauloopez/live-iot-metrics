@@ -31,7 +31,7 @@ defmodule LiveIotMetricsWeb.Dashboard.StartBatchModal do
     <dialog class="modal modal-open">
       <div class="modal-box max-w-3xl">
         <h3 class="font-bold text-lg mb-4">
-          Start Recipe Batch
+          Start reading
         </h3>
         <.form
           for={@form}
@@ -43,7 +43,7 @@ defmodule LiveIotMetricsWeb.Dashboard.StartBatchModal do
           <.input
             field={@form[:name]}
             type="text"
-            label="Batch name"
+            label="Reading name"
             class="input input-bordered w-full"
             placeholder="Name..."
           />
@@ -51,8 +51,8 @@ defmodule LiveIotMetricsWeb.Dashboard.StartBatchModal do
           <.input
             field={@form[:recipe_id]}
             type="select"
-            label="Recipe"
-            options={[{"Pick a recipe...", ""}] ++ @recipe_options}
+            label="Definition"
+            options={[{"Pick a definition...", ""}] ++ @recipe_options}
             class="select select-bordered w-full"
           />
 

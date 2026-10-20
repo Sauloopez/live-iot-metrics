@@ -68,7 +68,7 @@ defmodule LiveMetricsWeb.DashboardLive do
       socket
       |> assign(:active_batches, get_batches_in_area(socket.assigns.active_area_id))
       |> assign(:show_start_batch_modal, false)
-      |> put_flash(:info, "Batch started successfully")
+      |> put_flash(:info, "Reading started successfully")
 
     {:noreply, socket}
   end
@@ -125,11 +125,11 @@ defmodule LiveMetricsWeb.DashboardLive do
             <div class="bg-base-200 rounded-box p-6 space-y-6 mt-4">
               <div class="flex justify-end">
                 <button id="btn-start-batch" phx-click="on_start_batch" class="btn btn-primary btn-sm">
-                  <.icon name="hero-plus" class="w-4 h-4 mr-2" />Start Batch
+                  <.icon name="hero-plus" class="w-4 h-4 mr-2" />Start reading
                 </button>
               </div>
               <div class="flex justify-between items-center flex-wrap gap-4">
-                <h2 class="text-xl font-bold">Current Batches</h2>
+                <h2 class="text-xl font-bold">Active readings</h2>
               </div>
               <AreaRecipes.grid area_recipes={@active_batches} />
             </div>

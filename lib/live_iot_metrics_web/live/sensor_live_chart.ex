@@ -149,7 +149,7 @@ defmodule LiveIotMetricsWeb.SensorLiveChart do
           :if={Enum.empty?(@historical_data)}
           class="absolute inset-0 flex items-center justify-center text-sm text-base-content/40 pointer-events-none"
         >
-          Waiting for readings...
+          Waiting for measurements...
         </div>
       </div>
 

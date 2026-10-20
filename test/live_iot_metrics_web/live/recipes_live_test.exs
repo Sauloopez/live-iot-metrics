@@ -104,7 +104,7 @@ defmodule LiveMetricsWeb.RecipesLiveTest do
 
       refute has_element?(view, "#delete-recipe-dialog")
       refute has_element?(view, "#edit-recipe-#{recipe.id}")
-      assert render(view) =~ "Recipe &quot;Basil&quot; deleted"
+      assert render(view) =~ "Definition &quot;Basil&quot; deleted"
       assert Recipes.find_by_id(recipe.id) == nil
     end
 
@@ -137,7 +137,7 @@ defmodule LiveMetricsWeb.RecipesLiveTest do
 
       view |> element("#delete-recipe-#{recipe.id}") |> render_click()
 
-      assert has_element?(view, "#delete-recipe-dialog", "used by 1 production batch")
+      assert has_element?(view, "#delete-recipe-dialog", "used by 1 reading")
       refute has_element?(view, "#delete-recipe-dialog-confirm")
     end
   end

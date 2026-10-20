@@ -77,7 +77,7 @@ defmodule LiveMetricsWeb.Layouts do
 
           <li>
             <.link navigate={~p"/recipes"}>
-              <.icon name="hero-newspaper" class="w-5 h-5" /> Recipes
+              <.icon name="hero-newspaper" class="w-5 h-5" /> Reading definitions
             </.link>
           </li>
 

@@ -29,7 +29,7 @@ defmodule LiveMetricsWeb.Components.RecipeModal do
     <dialog class="modal modal-open">
       <div class="modal-box max-w-3xl">
         <h3 class="font-bold text-lg mb-4">
-          {if @recipe_struct.id, do: "Edit recipe", else: "Save recipe"}
+          {if @recipe_struct.id, do: "Edit reading definition", else: "New reading definition"}
         </h3>
         <.form
           for={@form}
