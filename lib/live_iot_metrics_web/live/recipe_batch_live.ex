@@ -1,7 +1,7 @@
 defmodule LiveMetricsWeb.RecipeBatchLive do
   alias Phoenix.PubSub
   alias LiveMetrics.Models.{RecipeBatch, BatchSensor, Nodes}
-  alias LiveMetricsWeb.Components.{AttachNodeModal, NodeModal}
+  alias LiveMetricsWeb.Components.{AttachNodeModal, ConfirmDialog, NodeModal}
   use LiveMetricsWeb, :live_view
 
   @impl true
@@ -15,6 +15,7 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
       |> assign(:recipe_batch_id, id)
       |> assign(:show_attach_node_modal, false)
       |> assign(:managing_node_id, nil)
+      |> assign(:confirm_delete?, false)
       |> assign_batch(RecipeBatch.find_by_id(id))
 
     {:ok, socket}
@@ -58,6 +59,35 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
       |> put_flash(:info, "Node attached to batch")
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("ask_delete_batch", _params, socket) do
+    {:noreply, assign(socket, :confirm_delete?, true)}
+  end
+
+  @impl true
+  def handle_event("cancel_delete_batch", _params, socket) do
+    {:noreply, assign(socket, :confirm_delete?, false)}
+  end
+
+  @impl true
+  def handle_event("delete_batch", _params, socket) do
+    batch = socket.assigns.batch
+
+    case RecipeBatch.delete(batch) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Batch \"#{batch.name}\" deleted")
+         |> push_navigate(to: ~p"/")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> assign(:confirm_delete?, false)
+         |> put_flash(:error, "Could not delete the batch")}
+    end
   end
 
   @impl true
@@ -133,6 +163,16 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
             <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back
           </.link>
           <h1 class="text-3xl font-bold text-primary">Batch Details</h1>
+          <div class="flex-1"></div>
+          <.button
+            :if={@batch}
+            id="btn-delete-batch"
+            type="button"
+            class="btn btn-sm btn-error btn-outline"
+            phx-click="ask_delete_batch"
+          >
+            <.icon name="hero-trash" class="w-4 h-4" /> Delete batch
+          </.button>
         </div>
 
         <%= if is_nil(@batch) do %>
@@ -334,6 +374,19 @@ defmodule LiveMetricsWeb.RecipeBatchLive do
           <% end %>
         <% end %>
       </div>
+      <ConfirmDialog.confirm_dialog
+        :if={@batch && @confirm_delete?}
+        id="delete-batch-dialog"
+        title={"Delete batch \"#{@batch.name}\"?"}
+        on_confirm="delete_batch"
+        on_cancel="cancel_delete_batch"
+      >
+        <p>
+          The batch and its {length(@batch.batch_sensors)} sensor tracking record(s) will be deleted.
+          This can not be undone.
+        </p>
+        <p>Sensor readings are kept: they belong to the sensors, not to the batch.</p>
+      </ConfirmDialog.confirm_dialog>
     </LiveMetricsWeb.Layouts.app>
     """
   end

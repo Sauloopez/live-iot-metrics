@@ -65,4 +65,10 @@ defmodule LiveMetrics.Models.RecipeBatch do
     |> changeset(attrs)
     |> Repo.insert()
   end
+
+  @doc """
+  Deletes the batch with its area link and tracked sensors (cascaded by the database).
+  Sensor readings belong to the sensors, so they are kept.
+  """
+  def delete(%__MODULE__{} = recipe_batch), do: Repo.delete(recipe_batch)
 end

@@ -74,4 +74,17 @@ defmodule LiveMetrics.Models.RecipeBatchTest do
     assert Repo.get!(BatchSensor, active.id).ended_at == ended_at
     assert Repo.get!(BatchSensor, detached.id).ended_at == earlier
   end
+
+  test "delete/1 removes the batch and its tracking but keeps sensor readings", %{batch: batch} do
+    sensor = sensor_fixture(node_fixture())
+    batch_sensor_fixture(batch, sensor)
+    readings_fixture(sensor, [1.0, 2.0])
+
+    assert {:ok, _} = RecipeBatch.delete(batch)
+
+    assert RecipeBatch.find_by_id(batch.id) == nil
+    assert Repo.all(BatchSensor) == []
+    assert Repo.all(LiveMetrics.Models.AreaBatch) == []
+    assert Repo.aggregate(LiveMetrics.Models.SensorReading, :count) == 2
+  end
 end

@@ -114,4 +114,46 @@ defmodule LiveMetricsWeb.RecipeBatchLiveTest do
       refute_push_event(view, "new-data", %{chart_id: ^old_chart})
     end
   end
+
+  describe "deleting the batch" do
+    test "asks for confirmation, deletes and goes back to the dashboard", %{
+      conn: conn,
+      batch: batch,
+      light: light
+    } do
+      batch_sensor_fixture(batch, light)
+      readings_fixture(light, [40.0])
+      {:ok, view, _html} = live(conn, ~p"/recipe-batch/#{batch.id}")
+
+      view |> element("#btn-delete-batch") |> render_click()
+      assert has_element?(view, "#delete-batch-dialog", "Basil batch")
+      assert has_element?(view, "#delete-batch-dialog", "1 sensor tracking record")
+
+      {:ok, dashboard, html} =
+        view
+        |> element("#delete-batch-dialog-confirm")
+        |> render_click()
+        |> follow_redirect(conn, ~p"/")
+
+      assert html =~ "Batch &quot;Basil batch&quot; deleted"
+      refute has_element?(dashboard, "#batch-card-#{batch.id}")
+      assert LiveMetrics.Models.RecipeBatch.find_by_id(batch.id) == nil
+      assert LiveMetrics.Repo.aggregate(LiveMetrics.Models.SensorReading, :count) == 1
+    end
+
+    test "cancel keeps the batch", %{conn: conn, batch: batch} do
+      {:ok, view, _html} = live(conn, ~p"/recipe-batch/#{batch.id}")
+
+      view |> element("#btn-delete-batch") |> render_click()
+      view |> element("#delete-batch-dialog-cancel") |> render_click()
+
+      refute has_element?(view, "#delete-batch-dialog")
+      assert LiveMetrics.Models.RecipeBatch.find_by_id(batch.id)
+    end
+
+    test "is not offered when the batch does not exist", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/recipe-batch/#{Ecto.UUID.generate()}")
+      refute has_element?(view, "#btn-delete-batch")
+    end
+  end
 end

@@ -47,6 +47,23 @@ defmodule LiveMetrics.Models.Recipes do
     |> Repo.update()
   end
 
+  @doc "Number of production batches (active or ended) created from the recipe."
+  def count_batches(%__MODULE__{id: id}) do
+    from(b in LiveMetrics.Models.RecipeBatch, where: b.recipe_id == ^id)
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
+  Deletes the recipe and its ranges. Recipes used by batches are kept: the database would
+  cascade the delete to every batch, so those batches must be deleted explicitly first.
+  """
+  def delete(%__MODULE__{} = recipe) do
+    case count_batches(recipe) do
+      0 -> Repo.delete(recipe)
+      count -> {:error, {:in_use, count}}
+    end
+  end
+
   def find_select_options() do
     from(r in __MODULE__, select: {r.name, r.id})
     |> Repo.all()

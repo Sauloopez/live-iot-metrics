@@ -59,4 +59,22 @@ defmodule LiveMetrics.Models.RecipesTest do
     recipe = recipe_fixture(name: "Mint")
     assert {"Mint", recipe.id} in Recipes.find_select_options()
   end
+
+  describe "delete/1" do
+    test "deletes an unused recipe with its ranges" do
+      recipe = recipe_fixture()
+      assert {:ok, _} = Recipes.delete(recipe)
+      assert Recipes.find_by_id(recipe.id) == nil
+      assert Repo.all(LiveMetrics.Models.PropertyRange) == []
+    end
+
+    test "keeps recipes used by batches instead of cascading to them" do
+      recipe = recipe_fixture()
+      batch_fixture(area_fixture(), recipe)
+      batch_fixture(area_fixture(), recipe)
+
+      assert Recipes.delete(recipe) == {:error, {:in_use, 2}}
+      assert Recipes.find_by_id(recipe.id)
+    end
+  end
 end
