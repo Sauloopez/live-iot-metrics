@@ -371,9 +371,9 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
       <div id="device-setup" class="space-y-6" phx-hook="WebSerialHook">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div class="flex items-center gap-3">
-            <.link navigate={~p"/devices"} class="btn btn-ghost btn-sm" id="back-to-devices">
+            <.button navigate={~p"/devices"} class="btn btn-ghost btn-sm" id="back-to-devices">
               <.icon name="hero-arrow-left" class="w-4 h-4" /> Devices
-            </.link>
+            </.button>
             <div>
               <h1 class="text-3xl font-bold text-primary">Device setup</h1>
               <p class="text-sm text-base-content/60">
@@ -428,7 +428,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
           </div>
 
           <div class="flex gap-2">
-            <button
+            <.button
               id="btn-connect"
               type="button"
               data-serial-action="connect"
@@ -436,8 +436,8 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
               disabled={@connected? or not @serial_supported?}
             >
               <.icon name="hero-bolt" class="w-4 h-4" /> Connect to device
-            </button>
-            <button
+            </.button>
+            <.button
               id="btn-disconnect"
               type="button"
               data-serial-action="disconnect"
@@ -445,7 +445,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
               disabled={not @connected?}
             >
               Disconnect
-            </button>
+            </.button>
           </div>
         </section>
 
@@ -474,7 +474,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
               autocomplete="new-password"
               class="input input-bordered input-sm w-full"
             />
-            <button
+            <.button
               id="btn-set-wifi"
               type="button"
               data-serial-action="set-wifi"
@@ -482,7 +482,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
               disabled
             >
               Send WiFi to node
-            </button>
+            </.button>
           </div>
 
           <div class="card bg-base-200 p-4 space-y-2">
@@ -502,7 +502,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
               value="5683"
               class="input input-bordered input-sm w-full"
             />
-            <button
+            <.button
               id="btn-set-coap"
               type="button"
               data-serial-action="set-coap"
@@ -510,7 +510,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
               disabled
             >
               Send CoAP target to node
-            </button>
+            </.button>
           </div>
         </div>
 
@@ -533,7 +533,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
               </p>
             </div>
             <div :if={@mac} class="flex gap-2">
-              <button
+              <.button
                 id="btn-sync-all"
                 type="button"
                 phx-click="sync_all"
@@ -541,8 +541,8 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
                 disabled={@busy? or @configs_count == 0}
               >
                 <.icon name="hero-arrow-path" class="w-4 h-4" /> Send all to node
-              </button>
-              <button
+              </.button>
+              <.button
                 id="btn-delete-all"
                 type="button"
                 phx-click="delete_all"
@@ -551,7 +551,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
                 disabled={@busy? or (@configs_count == 0 and @orphans == [])}
               >
                 <.icon name="hero-trash" class="w-4 h-4" /> Delete all
-              </button>
+              </.button>
             </div>
           </div>
 
@@ -638,7 +638,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
                   />
                 </div>
                 <div class="flex justify-end gap-2">
-                  <button
+                  <.button
                     :if={@editing}
                     id="btn-cancel-edit"
                     type="button"
@@ -646,8 +646,8 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
                     class="btn btn-sm btn-ghost"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </.button>
+                  <.button
                     id="btn-save-sensor"
                     type="submit"
                     class="btn btn-sm btn-primary"
@@ -656,78 +656,73 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
                   >
                     <.icon name="hero-check" class="w-4 h-4" />
                     {if @editing, do: "Save and send to node", else: "Add and send to node"}
-                  </button>
+                  </.button>
                 </div>
               </.form>
             </div>
 
-            <div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
-              <table class="table table-sm" id="sensor-configs-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Type</th>
-                    <th>Driver</th>
-                    <th class="text-right">Pin</th>
-                    <th class="text-right">Precision</th>
-                    <th class="text-right">Offset</th>
-                    <th class="text-right">Interval</th>
-                    <th>Node</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="sensor-configs" phx-update="stream">
-                  <tr id="sensor-configs-empty" class="hidden only:table-row">
-                    <td colspan="9" class="text-center text-base-content/50 py-6">
-                      No sensors saved for this node yet.
-                    </td>
-                  </tr>
-                  <tr
-                    :for={{dom_id, row} <- @streams.configs}
-                    id={dom_id}
-                    class={[
-                      "transition-colors hover:bg-base-200/60",
-                      @editing && @editing.id == row.id && "bg-primary/5"
-                    ]}
+            <div
+              :if={@configs_count == 0}
+              id="sensor-configs-empty"
+              class="rounded-box border border-dashed border-base-300 p-6 text-center text-sm text-base-content/50"
+            >
+              No sensors saved for this node yet.
+            </div>
+            <div class={[
+              "overflow-x-auto rounded-box border border-base-300 bg-base-100",
+              @configs_count == 0 && "hidden"
+            ]}>
+              <.table
+                id="sensor-configs"
+                rows={@streams.configs}
+                row_item={fn {_dom_id, row} -> row end}
+              >
+                <:col :let={row} label="ID"><span class="font-mono">#{row.id}</span></:col>
+                <:col :let={row} label="Type">
+                  <span class="font-mono">{row.config.sensor_type}</span>
+                </:col>
+                <:col :let={row} label="Driver">
+                  <span class="text-xs">{row.config.driver}</span>
+                </:col>
+                <:col :let={row} label="Pin"><span class="font-mono">{row.config.pin}</span></:col>
+                <:col :let={row} label="Precision">
+                  <span class="font-mono tabular-nums">{format_number(row.config.precision)}</span>
+                </:col>
+                <:col :let={row} label="Offset">
+                  <span class="font-mono tabular-nums">{format_number(row.config.offset)}</span>
+                </:col>
+                <:col :let={row} label="Interval">
+                  <span class="font-mono tabular-nums whitespace-nowrap">
+                    {row.config.interval_ms} ms
+                  </span>
+                </:col>
+                <:col :let={row} label="Node">
+                  <.sync_badge status={row.status} id={"sync-status-#{row.id}"} />
+                </:col>
+                <:action :let={row}>
+                  <.button
+                    id={"edit-sensor-#{row.id}"}
+                    type="button"
+                    phx-click="edit"
+                    phx-value-id={row.id}
+                    class="btn btn-ghost btn-xs"
+                    disabled={@busy?}
                   >
-                    <td class="font-mono">#{row.id}</td>
-                    <td class="font-mono">{row.config.sensor_type}</td>
-                    <td class="text-xs">{row.config.driver}</td>
-                    <td class="text-right font-mono">{row.config.pin}</td>
-                    <td class="text-right font-mono tabular-nums">
-                      {format_number(row.config.precision)}
-                    </td>
-                    <td class="text-right font-mono tabular-nums">
-                      {format_number(row.config.offset)}
-                    </td>
-                    <td class="text-right font-mono tabular-nums">{row.config.interval_ms} ms</td>
-                    <td><.sync_badge status={row.status} id={"sync-status-#{row.id}"} /></td>
-                    <td class="text-right whitespace-nowrap">
-                      <button
-                        id={"edit-sensor-#{row.id}"}
-                        type="button"
-                        phx-click="edit"
-                        phx-value-id={row.id}
-                        class="btn btn-ghost btn-xs"
-                        disabled={@busy?}
-                      >
-                        <.icon name="hero-pencil-square" class="w-4 h-4" />
-                      </button>
-                      <button
-                        id={"delete-sensor-#{row.id}"}
-                        type="button"
-                        phx-click="delete"
-                        phx-value-id={row.id}
-                        data-confirm={"Delete sensor ##{row.id} from the database and the node?"}
-                        class="btn btn-ghost btn-xs text-error"
-                        disabled={@busy?}
-                      >
-                        <.icon name="hero-trash" class="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    <.icon name="hero-pencil-square" class="w-4 h-4" />
+                  </.button>
+                  <.button
+                    id={"delete-sensor-#{row.id}"}
+                    type="button"
+                    phx-click="delete"
+                    phx-value-id={row.id}
+                    data-confirm={"Delete sensor ##{row.id} from the database and the node?"}
+                    class="btn btn-ghost btn-xs text-error"
+                    disabled={@busy?}
+                  >
+                    <.icon name="hero-trash" class="w-4 h-4" />
+                  </.button>
+                </:action>
+              </.table>
             </div>
 
             <div
@@ -747,7 +742,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
                 <span class="font-mono">
                   #{sensor["id"]} · {sensor["type"]} · {sensor["driver"]} · pin {sensor["pin"]}
                 </span>
-                <button
+                <.button
                   id={"remove-orphan-#{sensor["id"]}"}
                   type="button"
                   phx-click="remove_orphan"
@@ -756,7 +751,7 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
                   disabled={@busy?}
                 >
                   Remove from node
-                </button>
+                </.button>
               </div>
             </div>
           </div>
@@ -768,14 +763,14 @@ defmodule LiveMetricsWeb.DeviceSetupLive do
             <h2 class="font-bold flex items-center gap-2">
               <.icon name="hero-command-line" class="w-4 h-4" /> Terminal
             </h2>
-            <button
+            <.button
               id="btn-clear-terminal"
               type="button"
               data-serial-action="clear-terminal"
               class="btn btn-ghost btn-xs"
             >
               Clear
-            </button>
+            </.button>
           </div>
           <pre
             id="serial-terminal"
