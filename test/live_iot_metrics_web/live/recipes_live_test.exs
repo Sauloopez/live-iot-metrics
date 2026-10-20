@@ -141,4 +141,27 @@ defmodule LiveMetricsWeb.RecipesLiveTest do
       refute has_element?(view, "#delete-recipe-dialog-confirm")
     end
   end
+
+  test "the blocked dialog lists the batches using the recipe, even without an area", %{
+    conn: conn
+  } do
+    recipe = recipe_fixture(name: "My first recipe")
+    batch = batch_fixture(area_fixture(), recipe, name: "First batch")
+    LiveMetrics.Repo.delete_all(LiveMetrics.Models.AreaBatch)
+    {:ok, view, _html} = live(conn, ~p"/recipes")
+
+    view |> element("#delete-recipe-#{recipe.id}") |> render_click()
+
+    assert has_element?(view, "#recipe-batch-in-use-#{batch.id}", "First batch")
+    assert has_element?(view, "#recipe-batch-in-use-#{batch.id}", "No area")
+
+    # The batch opens, can be deleted, and then the recipe can be deleted too
+    {:ok, batch_view, _html} =
+      view |> element("#open-recipe-batch-#{batch.id}") |> render_click() |> follow_redirect(conn)
+
+    batch_view |> element("#btn-delete-batch") |> render_click()
+    batch_view |> element("#delete-batch-dialog-confirm") |> render_click()
+
+    assert {:ok, _} = Recipes.delete(recipe)
+  end
 end

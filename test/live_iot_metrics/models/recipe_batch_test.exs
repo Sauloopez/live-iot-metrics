@@ -87,4 +87,24 @@ defmodule LiveMetrics.Models.RecipeBatchTest do
     assert Repo.all(LiveMetrics.Models.AreaBatch) == []
     assert Repo.aggregate(LiveMetrics.Models.SensorReading, :count) == 2
   end
+
+  describe "batches without an area link" do
+    setup %{batch: batch} do
+      Repo.delete_all(LiveMetrics.Models.AreaBatch)
+      %{orphan: batch}
+    end
+
+    test "find_by_id/1 still finds them so they can be opened and deleted", %{orphan: orphan} do
+      assert %RecipeBatch{id: id} = RecipeBatch.find_by_id(orphan.id)
+      assert id == orphan.id
+    end
+
+    test "list_by_recipe/1 includes them", %{orphan: orphan, recipe: recipe, area: area} do
+      with_area = batch_fixture(area, recipe)
+
+      batches = RecipeBatch.list_by_recipe(recipe.id)
+      assert MapSet.new(batches, & &1.id) == MapSet.new([orphan.id, with_area.id])
+      assert Enum.find(batches, &(&1.id == with_area.id)).area_batch.area.id == area.id
+    end
+  end
 end

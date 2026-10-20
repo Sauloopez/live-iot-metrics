@@ -1,6 +1,6 @@
 defmodule LiveMetricsWeb.RecipesLive do
   alias LiveMetricsWeb.Components.{ConfirmDialog, RecipeModal}
-  alias LiveMetrics.Models.Recipes
+  alias LiveMetrics.Models.{RecipeBatch, Recipes}
   use LiveMetricsWeb, :live_view
 
   @impl true
@@ -80,6 +80,43 @@ defmodule LiveMetricsWeb.RecipesLive do
             is used by {@deleting.batch_count} production batch(es).
             Delete those batches first; deleting the recipe would remove them too.
           </p>
+          <ul
+            id="recipe-batches-in-use"
+            class="divide-y divide-base-300 rounded-box border border-base-300"
+          >
+            <li
+              :for={batch <- @deleting.batches}
+              id={"recipe-batch-in-use-#{batch.id}"}
+              class="flex items-center justify-between gap-3 px-3 py-2"
+            >
+              <div class="min-w-0">
+                <p class="font-medium text-base-content truncate">{batch.name}</p>
+                <p class="text-xs">
+                  {Calendar.strftime(batch.started_at, "%Y-%m-%d")} ·
+                  <%= if batch.area_batch && batch.area_batch.area do %>
+                    {batch.area_batch.area.name}
+                  <% else %>
+                    <span class="text-warning">No area (not shown on the dashboard)</span>
+                  <% end %>
+                </p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class={[
+                  "badge badge-sm",
+                  if(batch.ended_at, do: "badge-ghost", else: "badge-warning badge-soft")
+                ]}>
+                  {if batch.ended_at, do: "Ended", else: "Active"}
+                </span>
+                <.link
+                  id={"open-recipe-batch-#{batch.id}"}
+                  navigate={~p"/recipe-batch/#{batch.id}"}
+                  class="btn btn-ghost btn-xs"
+                >
+                  Open <.icon name="hero-arrow-right" class="w-3 h-3" />
+                </.link>
+              </div>
+            </li>
+          </ul>
         <% else %>
           <p>
             Its {length(@deleting.recipe.property_ranges)} sensor range(s) will be deleted.
@@ -114,9 +151,10 @@ defmodule LiveMetricsWeb.RecipesLive do
   @impl true
   def handle_event("ask_delete_recipe", %{"id" => id}, socket) do
     recipe = Recipes.find_by_id(id)
+    batches = RecipeBatch.list_by_recipe(recipe.id)
 
     {:noreply,
-     assign(socket, :deleting, %{recipe: recipe, batch_count: Recipes.count_batches(recipe)})}
+     assign(socket, :deleting, %{recipe: recipe, batches: batches, batch_count: length(batches)})}
   end
 
   @impl true
