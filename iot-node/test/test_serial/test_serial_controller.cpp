@@ -88,7 +88,7 @@ void setUp(void) {
     coapUseCases = new CoapUseCases(mockCoapRepo);
     sensorUseCases = new SensorUseCases(mockSensorRepo);
 
-    serialController = new SerialController(wifiUseCases, coapUseCases, sensorUseCases);
+    serialController = new SerialController(sensorUseCases);
 }
 
 void tearDown(void) {

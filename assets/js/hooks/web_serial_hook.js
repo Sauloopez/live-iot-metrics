@@ -7,6 +7,19 @@
 //   * sends WiFi / CoAP settings straight from the browser (the WiFi password never reaches
 //     the server)
 
+// The node answers with one or two character keys to keep lines short
+// (iot-node/src/shared/presentation/controllers/SerialProtocol.h, docs/tundra/SERIAL_API.md):
+// {"s": "ok" | "error", "m": message, ...command specific keys}
+const expandSensor = (s) => ({
+  id: s.i,
+  pin: s.p,
+  type: s.t,
+  driver: s.dr,
+  precision: s.pr,
+  offset: s.o,
+  interval: s.iv,
+});
+
 const RESPONSE_TIMEOUT_MS = 20000;
 const BOOT_SETTLE_MS = 2500;
 
@@ -102,8 +115,8 @@ export const WebSerialHook = {
 
     try {
       const info = await this.enqueue({ command: "info" });
-      if (!info.mac) throw new Error("the node did not report its MAC; update the firmware");
-      this.pushEvent("node_identified", { mac: info.mac });
+      if (!info.mc) throw new Error("the node did not report its MAC; update the firmware");
+      this.pushEvent("node_identified", { mac: info.mc, variant: info.v });
       await this.refreshSensors();
     } catch (e) {
       this.log("Could not identify the node: " + e.message);
@@ -177,7 +190,7 @@ export const WebSerialHook = {
     this.log("<- " + line);
 
     // Firmware log lines and JSON responses can share a line; take the JSON part
-    const start = line.indexOf('{"status"');
+    const start = line.indexOf('{"s":');
     if (start < 0 || !this.pending) return;
 
     let response;
@@ -187,7 +200,7 @@ export const WebSerialHook = {
       return;
     }
     // Printed on boot, not an answer to our command
-    if (response.message === "Serial controller ready") return;
+    if (response.m === "Serial controller ready") return;
 
     const { resolve, timer } = this.pending;
     clearTimeout(timer);
@@ -234,7 +247,7 @@ export const WebSerialHook = {
     }
 
     const result = await response;
-    if (result.status !== "ok") throw new Error(result.message || "command failed");
+    if (result.s !== "ok") throw new Error(result.m || "command failed");
     return result;
   },
 
@@ -243,7 +256,7 @@ export const WebSerialHook = {
     for (const command of commands) {
       try {
         const response = await this.enqueue(command);
-        results.push({ command, ok: true, message: response.message || "ok" });
+        results.push({ command, ok: true, message: response.m || "ok" });
       } catch (e) {
         results.push({ command, ok: false, message: e.message });
       }
@@ -255,7 +268,7 @@ export const WebSerialHook = {
   async refreshSensors() {
     try {
       const response = await this.enqueue({ command: "sensor", data: { action: "list" } });
-      this.pushEvent("node_sensors", { sensors: response.data || [] });
+      this.pushEvent("node_sensors", { sensors: (response.d || []).map(expandSensor) });
     } catch (e) {
       this.log("Could not read sensors from the node: " + e.message);
     }

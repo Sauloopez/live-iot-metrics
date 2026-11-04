@@ -3,53 +3,87 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include "../../usecases/UseCases.h"
+#include <functional>
+#include <vector>
+#include "SerialProtocol.h"
+#include "../../usecases/SensorUseCases.h"
 
+// JSON command API over USB serial, one command per line.
+//
+// Built in: `ping`, `info` and `sensor`. Each node configuration registers the commands it
+// supports (e.g. `wifi`/`coap` for networked nodes, `time` for nodes with a clock), so a node
+// never offers commands that make no sense for it.
 class SerialController {
-private:
-    WifiUseCases* wifiUseCases;
-    CoapUseCases* coapUseCases;
-    SensorUseCases* sensorUseCases;
-    String deviceMac;
+public:
+    using Handler = std::function<void(JsonObject&)>;
 
-    void handleWifiCommand(JsonObject& doc) {
-        String action = doc["action"] | "";
-        
-        if (action == "set") {
-            String ssid = doc["ssid"] | "";
-            String password = doc["password"] | "";
-            
-            if (wifiUseCases->saveConfig(ssid, password)) {
-                Serial.println("{\"status\":\"ok\",\"message\":\"WiFi config saved\"}");
-            } else {
-                Serial.println("{\"status\":\"error\",\"message\":\"Failed to save WiFi config\"}");
+    SerialController(SensorUseCases* sensor, const String& mac = "", const String& variant = "")
+        : sensorUseCases(sensor), deviceMac(mac), variant(variant) {}
+
+    void registerCommand(const String& name, Handler handler) {
+        commands.push_back({name, handler});
+    }
+
+    void begin() {
+        SerialProtocol::ok("Serial controller ready");
+    }
+
+    // millis() of the last command received; used to leave service mode when idle
+    uint32_t lastActivityMs() const { return lastActivity; }
+
+    void handle() {
+        if (Serial.available()) {
+            String input = Serial.readStringUntil('\n');
+            input.trim();
+
+            if (input.length() == 0) return;
+            lastActivity = millis();
+
+            DynamicJsonDocument doc(512);
+            DeserializationError error = deserializeJson(doc, input);
+
+            if (error) {
+                SerialProtocol::error((String("Invalid JSON: ") + error.c_str()).c_str());
+                return;
             }
-        } else if (action == "get") {
-            WifiConfig config = wifiUseCases->getConfig();
-            Serial.printf("{\"status\":\"ok\",\"ssid\":\"%s\"}\n", config.ssid.c_str());
-        } else {
-            Serial.println("{\"status\":\"error\",\"message\":\"Unknown action\"}");
+
+            String command = doc["command"] | "";
+            JsonObject data = doc["data"].as<JsonObject>();
+
+            if (command == "sensor") {
+                handleSensorCommand(data);
+            } else if (command == "ping") {
+                SerialProtocol::ok("pong");
+            } else if (command == "info") {
+                // Identifies the node to the web setup screen (same MAC sent in CoAP payloads)
+                Serial.printf("{\"s\":\"ok\",\"mc\":\"%s\",\"v\":\"%s\"}\n", deviceMac.c_str(),
+                              variant.c_str());
+            } else if (!dispatchRegistered(command, data)) {
+                SerialProtocol::error("Unknown command");
+            }
         }
     }
 
-    void handleCoapCommand(JsonObject& doc) {
-        String action = doc["action"] | "";
-        
-        if (action == "set") {
-            String host = doc["host"] | "";
-            int port = doc["port"] | 5683;
-            
-            if (coapUseCases->saveConfig(host, port)) {
-                Serial.println("{\"status\":\"ok\",\"message\":\"CoAP config saved\"}");
-            } else {
-                Serial.println("{\"status\":\"error\",\"message\":\"Failed to save CoAP config\"}");
+private:
+    struct Command {
+        String name;
+        Handler handler;
+    };
+
+    SensorUseCases* sensorUseCases;
+    String deviceMac;
+    String variant;
+    std::vector<Command> commands;
+    uint32_t lastActivity = 0;
+
+    bool dispatchRegistered(const String& name, JsonObject& data) {
+        for (Command& command : commands) {
+            if (command.name == name) {
+                command.handler(data);
+                return true;
             }
-        } else if (action == "get") {
-            CoapConfig config = coapUseCases->getConfig();
-            Serial.printf("{\"status\":\"ok\",\"host\":\"%s\",\"port\":%d}\n", config.host.c_str(), config.port);
-        } else {
-            Serial.println("{\"status\":\"error\",\"message\":\"Unknown action\"}");
         }
+        return false;
     }
 
     void handleSensorCommand(JsonObject& doc) {
@@ -65,19 +99,19 @@ private:
             unsigned long interval = doc["interval"] | 10000;
             
             if (id == -1 || pin == -1) {
-                Serial.println("{\"status\":\"error\",\"message\":\"Missing id or pin\"}");
+                SerialProtocol::error("Missing id or pin");
                 return;
             }
 
             if (!SensorConfig::isKnownDriver(driver)) {
-                Serial.println("{\"status\":\"error\",\"message\":\"Unknown driver\"}");
+                SerialProtocol::error("Unknown driver");
                 return;
             }
 
             if (sensorUseCases->addSensor(id, pin, type, precision, interval, offset, driver)) {
-                Serial.println("{\"status\":\"ok\",\"message\":\"Sensor added\"}");
+                SerialProtocol::ok("Sensor added");
             } else {
-                Serial.println("{\"status\":\"error\",\"message\":\"Failed to add sensor\"}");
+                SerialProtocol::error("Failed to add sensor");
             }
         } else if (action == "update") {
             int id = doc["id"] | -1;
@@ -89,95 +123,50 @@ private:
             unsigned long interval = doc["interval"] | 10000;
             
             if (id == -1 || pin == -1) {
-                Serial.println("{\"status\":\"error\",\"message\":\"Missing id or pin\"}");
+                SerialProtocol::error("Missing id or pin");
                 return;
             }
 
             if (!SensorConfig::isKnownDriver(driver)) {
-                Serial.println("{\"status\":\"error\",\"message\":\"Unknown driver\"}");
+                SerialProtocol::error("Unknown driver");
                 return;
             }
 
             if (sensorUseCases->updateSensor(id, pin, type, precision, interval, offset, driver)) {
-                Serial.println("{\"status\":\"ok\",\"message\":\"Sensor updated\"}");
+                SerialProtocol::ok("Sensor updated");
             } else {
-                Serial.println("{\"status\":\"error\",\"message\":\"Failed to update sensor\"}");
+                SerialProtocol::error("Failed to update sensor");
             }
         } else if (action == "remove") {
             int id = doc["id"] | -1;
             
             if (sensorUseCases->removeSensor(id)) {
-                Serial.println("{\"status\":\"ok\",\"message\":\"Sensor removed\"}");
+                SerialProtocol::ok("Sensor removed");
             } else {
-                Serial.println("{\"status\":\"error\",\"message\":\"Failed to remove sensor\"}");
+                SerialProtocol::error("Failed to remove sensor");
             }
         } else if (action == "list") {
             auto sensors = sensorUseCases->getSensors();
             
             DynamicJsonDocument response(2048);
-            response["status"] = "ok";
-            JsonArray data = response.createNestedArray("data");
+            response["s"] = "ok";
+            JsonArray data = response.createNestedArray("d");
             
             for (const auto& sensor : sensors) {
                 JsonObject s = data.createNestedObject();
-                s["id"] = sensor.id;
-                s["pin"] = sensor.pin;
-                s["type"] = sensor.type;
-                s["precision"] = sensor.precision;
-                s["offset"] = sensor.offset;
-                s["driver"] = sensor.driver;
-                s["interval"] = sensor.interval_ms;
+                s["i"] = sensor.id;
+                s["p"] = sensor.pin;
+                s["t"] = sensor.type;
+                s["pr"] = sensor.precision;
+                s["o"] = sensor.offset;
+                s["dr"] = sensor.driver;
+                s["iv"] = sensor.interval_ms;
             }
             
             serializeJson(response, Serial);
             Serial.println();
         } else {
-            Serial.println("{\"status\":\"error\",\"message\":\"Unknown action\"}");
-        }
-    }
-
-public:
-    SerialController(WifiUseCases* wifi, CoapUseCases* coap, SensorUseCases* sensor, const String& mac = "")
-        : wifiUseCases(wifi), coapUseCases(coap), sensorUseCases(sensor), deviceMac(mac) {}
-
-    void begin() {
-        Serial.println("{\"status\":\"ok\",\"message\":\"Serial controller ready\"}");
-    }
-
-    void handle() {
-        if (Serial.available()) {
-            String input = Serial.readStringUntil('\n');
-            input.trim();
-            
-            if (input.length() == 0) return;
-
-            DynamicJsonDocument doc(512);
-            DeserializationError error = deserializeJson(doc, input);
-
-            if (error) {
-                Serial.printf("{\"status\":\"error\",\"message\":\"Invalid JSON: %s\"}\n", error.c_str());
-                return;
-            }
-
-            String command = doc["command"] | "";
-
-            if (command == "wifi") {
-                JsonObject data = doc["data"].as<JsonObject>();
-                handleWifiCommand(data);
-            } else if (command == "coap") {
-                JsonObject data = doc["data"].as<JsonObject>();
-                handleCoapCommand(data);
-            } else if (command == "sensor") {
-                JsonObject data = doc["data"].as<JsonObject>();
-                handleSensorCommand(data);
-            } else if (command == "ping") {
-                Serial.println("{\"status\":\"ok\",\"message\":\"pong\"}");
-            } else if (command == "info") {
-                // Identifies the node to the web setup screen (same MAC sent in CoAP payloads)
-                Serial.printf("{\"status\":\"ok\",\"mac\":\"%s\"}\n", deviceMac.c_str());
-            } else {
-                Serial.println("{\"status\":\"error\",\"message\":\"Unknown command\"}");
-            }
+            SerialProtocol::error("Unknown action");
         }
     }
 };

@@ -141,7 +141,7 @@ Cada sensor muestra si el nodo coincide con la base de datos: **Synced**, **Diff
 
 ### API serial
 
-Comandos JSON, uno por línea, a 115200 baudios:
+Comandos JSON, uno por línea, a 115200 baudios. Las respuestas usan claves de uno o dos caracteres; la referencia completa de comandos y respuestas está en [`docs/tundra/SERIAL_API.md`](docs/tundra/SERIAL_API.md).
 
 ```json
 {"command":"ping"}

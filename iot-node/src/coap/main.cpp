@@ -4,6 +4,7 @@
 #include <esp_mac.h>
 
 // Infrastructure Repositories
+#include "../shared/presentation/controllers/SerialProtocol.h"
 #include "../shared/infrastructure/repositories/NvsRepositories.h"
 #include "../shared/infrastructure/repositories/LittleFsSensorRepository.h"
 
@@ -17,6 +18,7 @@
 
 // Presentation Controllers
 #include "../shared/presentation/controllers/SerialController.h"
+#include "../shared/presentation/controllers/NetworkCommands.h"
 
 // Global instances for Dependency Injection
 NvsWifiConfigRepository wifiRepo;
@@ -100,10 +102,11 @@ void setup() {
     macAddress = macStr;
 
     // 3. Instantiate Controllers
-    serialController = new SerialController(wifiUseCases, coapUseCases, sensorUseCases, macAddress);
+    serialController = new SerialController(sensorUseCases, macAddress, "coap");
+    NetworkCommands::registerOn(*serialController, wifiUseCases, coapUseCases);
 
     // Announce serial API is ready
-    Serial.println("{\"status\":\"ok\",\"message\":\"Serial controller ready\"}");
+    SerialProtocol::ok("Serial controller ready");
 
     // 4. Start WiFi
     connectToWifi();
