@@ -1,6 +1,8 @@
 defmodule LiveMetrics.Metrics.ProcessorTest do
   @moduledoc "Covers the insert_reading_in_batch/1 database function used for every CoAP batch."
-  use LiveMetrics.DataCase, async: true
+  # Not async: inserting readings creates TimescaleDB chunks inside the sandbox transaction,
+  # and concurrent chunk creation deadlocks
+  use LiveMetrics.DataCase, async: false
 
   import LiveMetrics.Fixtures
   alias LiveMetrics.Metrics.Processor

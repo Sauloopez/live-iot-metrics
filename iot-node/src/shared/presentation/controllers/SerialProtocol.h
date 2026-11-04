@@ -26,6 +26,10 @@
 //                   st  storage  {n: next seq, a: acked seq, pd: pending, f: free bytes,
 //                                 tt: total bytes, fw: failed writes}
 //                   pw  power    {bc: boot count, aw: total awake ms, rr: reset reason}
+//   sync status     n   next seq    a  acked seq    pd  pending
+//   sync credit     a   acked seq after applying the confirmation
+//   sync end        l   last seq sent (message "Stream end")
+//   (sync DATA frames are binary, see SyncStream.h)
 namespace SerialProtocol {
 
 inline void ok(const char* message) {

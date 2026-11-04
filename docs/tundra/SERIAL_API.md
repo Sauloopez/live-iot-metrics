@@ -32,6 +32,7 @@ Al arrancar, el nodo imprime `{"s":"ok","m":"Serial controller ready"}`; no resp
 | `coap`   |   ✅   |     —      |
 | `time`   |   —    |     ✅     |
 | `status` |   —    |     ✅     |
+| `sync`   |   —    |     ✅     |
 
 Un comando no disponible responde `{"s":"error","m":"Unknown command"}`.
 
@@ -139,3 +140,54 @@ Respuesta de `list`, cada elemento de `d`:
 | `pw` energía        | `bc`  | Despertares desde el último encendido                                          |
 |                     | `aw`  | Tiempo total despierto (ms) desde el último encendido                          |
 |                     | `rr`  | Causa del último reinicio (`esp_reset_reason_t`: 1 encendido, 8 deep sleep, …) |
+
+## `sync` (nodos con almacenamiento)
+
+Extracción de las mediciones guardadas con control de flujo por créditos ([PLAN.md, sección 6.1](PLAN.md#61-usb--web-serial-aislado-y-respaldo-de-todos-los-modos)). El nodo nunca envía más mediciones que el crédito vigente, y solo libera lo que el servidor confirmó.
+
+```json
+→ {"command":"sync","data":{"action":"status"}}
+← {"s":"ok","n":1201,"a":1000,"pd":200}
+
+→ {"command":"sync","data":{"action":"stream","from":1001,"credit":256}}
+← {"s":"ok","m":"Stream started"}
+← <tramas DATA binarias…>
+
+→ {"command":"sync","data":{"action":"credit","ack":1128,"credit":128}}
+← {"s":"ok","a":1128}
+← <más tramas DATA…>
+
+← {"s":"ok","m":"Stream end","l":1200}
+
+→ {"command":"sync","data":{"action":"stop"}}
+← {"s":"ok","m":"Stream stopped"}
+```
+
+| Respuesta | Clave | Significado                                             |
+| --------- | ----- | ------------------------------------------------------- |
+| `status`  | `n`   | Siguiente `seq` que se asignará                         |
+|           | `a`   | Último `seq` confirmado                                 |
+|           | `pd`  | Mediciones pendientes (total para la barra de progreso) |
+| `credit`  | `a`   | Último `seq` confirmado tras aplicar el `ack`           |
+| fin       | `l`   | Último `seq` enviado                                    |
+
+- `stream.from`: primer `seq` a enviar (nunca envía lo ya confirmado; para reanudar tras un corte, `from` = marca del servidor + 1).
+- `credit.ack`: el servidor tiene todo hasta este `seq`; el nodo borra los segmentos completos confirmados. `0` = sin confirmación nueva.
+- `credit.credit`: cuántas mediciones más puede enviar el nodo.
+
+### Trama DATA
+
+Cada trama viaja codificada con **COBS** y entre dos bytes `0x00`: `0x00 · COBS(trama) · 0x00`. Como las líneas JSON nunca contienen `0x00`, el receptor distingue siempre tramas de respuestas.
+
+Contenido de la trama antes de COBS (enteros en _little endian_):
+
+| Campo       | Bytes | Descripción                                                                            |
+| ----------- | ----: | -------------------------------------------------------------------------------------- |
+| `type`      |     1 | `0x01` (DATA)                                                                          |
+| `frame_no`  |     2 | Número de trama, desde 0 en cada stream                                                |
+| `first_seq` |     4 | `seq` de la primera medición                                                           |
+| `count`     |     1 | Mediciones en la trama (máx. 16)                                                       |
+| `records`   |     n | `count` mediciones CBOR seguidas: `[seq, ts, sensor_id, valor]`                        |
+| `crc`       |     2 | CRC-16/CCITT-FALSE de todos los bytes anteriores (polinomio `0x1021`, inicio `0xFFFF`) |
+
+Una trama con CRC inválido se descarta; el navegador pide reanudar desde la última confirmación.

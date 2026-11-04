@@ -1,5 +1,7 @@
 defmodule LiveMetricsWeb.RecipeBatchLiveTest do
-  use LiveMetricsWeb.ConnCase, async: true
+  # Not async: inserting readings creates TimescaleDB chunks inside the sandbox transaction,
+  # and concurrent chunk creation deadlocks
+  use LiveMetricsWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import LiveMetrics.Fixtures

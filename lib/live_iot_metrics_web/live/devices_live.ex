@@ -41,9 +41,18 @@ defmodule LiveMetricsWeb.DevicesLive do
       <div class="space-y-6">
         <div class="flex justify-between items-center">
           <h1 class="text-3xl font-bold text-primary">Devices</h1>
-          <.link id="device-setup-link" navigate={~p"/devices/setup"} class="btn btn-secondary btn-sm">
-            <.icon name="hero-bolt" class="w-4 h-4 mr-2" /> Configure via USB
-          </.link>
+          <div class="flex gap-2">
+            <.link
+              id="device-setup-link"
+              navigate={~p"/devices/setup"}
+              class="btn btn-secondary btn-sm"
+            >
+              <.icon name="hero-bolt" class="w-4 h-4 mr-2" /> Configure via USB
+            </.link>
+            <.link id="device-sync-link" navigate={~p"/devices/sync"} class="btn btn-outline btn-sm">
+              <.icon name="hero-arrow-down-tray" class="w-4 h-4 mr-2" /> Extract data via USB
+            </.link>
+          </div>
         </div>
 
         <div class="bg-base-200 rounded-box p-6">

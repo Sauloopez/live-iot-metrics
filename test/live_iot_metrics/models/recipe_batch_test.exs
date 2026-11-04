@@ -1,5 +1,7 @@
 defmodule LiveMetrics.Models.RecipeBatchTest do
-  use LiveMetrics.DataCase, async: true
+  # Not async: inserting readings creates TimescaleDB chunks inside the sandbox transaction,
+  # and concurrent chunk creation deadlocks
+  use LiveMetrics.DataCase, async: false
 
   import LiveMetrics.Fixtures
   alias LiveMetrics.Models.{BatchSensor, RecipeBatch}

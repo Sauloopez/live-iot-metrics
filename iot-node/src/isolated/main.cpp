@@ -21,6 +21,7 @@
 #include "../shared/infrastructure/time/NodeClock.h"
 #include "../shared/presentation/controllers/ClockCommands.h"
 #include "../shared/presentation/controllers/SerialController.h"
+#include "../shared/presentation/controllers/SyncCommands.h"
 #include "../shared/usecases/SensorUseCases.h"
 #include "../shared/usecases/WakeCycle.h"
 #include "presentation/controllers/StatusCommands.h"
@@ -56,6 +57,7 @@ PowerManager power(PIN_SERVICE_BUTTON, PIN_POWER_SWITCH);
 BatteryMonitor battery(PIN_BATTERY, BATTERY_R1, BATTERY_R2);
 
 SerialController* serialController = nullptr;
+SyncCommands syncCommands(storageTask);
 uint32_t serviceStartedMs = 0;
 
 // Every wake reads all sensors; the cycle follows the fastest configured sensor
@@ -95,6 +97,7 @@ static void startServiceMode() {
     serialController = new SerialController(&sensorUseCases, deviceMac(), "isolated");
     ClockCommands::registerOn(*serialController, &nodeClock);
     StatusCommands::registerOn(*serialController, {&nodeClock, &dataFiles, &storageTask, &battery, &power});
+    syncCommands.registerOn(*serialController);
     serialController->begin();
     serviceStartedMs = millis();
 }
@@ -122,11 +125,14 @@ void setup() {
 
 void loop() {
     serialController->handle();
+    syncCommands.tick();
 
+    // A running extraction counts as activity even if no command arrives for a while
+    if (syncCommands.isStreaming()) serviceStartedMs = millis();
     uint32_t lastActivity = std::max(serialController->lastActivityMs(), serviceStartedMs);
     if (WakeCycle::serviceModeExpired(millis(), lastActivity, SERVICE_IDLE_TIMEOUT_MS)) {
         SerialProtocol::ok("Service mode idle, going to sleep");
         sleepUntilNextCycle(sensorUseCases.getSensors());
     }
-    delay(5);
+    if (!syncCommands.isStreaming()) delay(5);  // no pause between frames while extracting
 }

@@ -1,11 +1,15 @@
-// Web Serial transport for the device setup screen.
+// Web Serial transport for the device setup and data extraction screens.
 //
 // The LiveView owns the UI state; this hook only moves bytes:
 //   * connects to the node and reports it (`serial_connected`, `node_identified`, `node_sensors`)
 //   * runs the commands the server pushes (`serial_commands`) one at a time, waiting for each
 //     JSON response so the ESP32 serial buffer never overflows, then refreshes the sensor list
+//   * answers single requests from the server (`serial_request` -> `serial_response`)
+//   * runs data extractions (`sync_start` / `sync_stop`, see ../serial/sync_engine.js)
 //   * sends WiFi / CoAP settings straight from the browser (the WiFi password never reaches
 //     the server)
+import { FrameReader } from "../serial/frame_reader";
+import { SyncEngine } from "../serial/sync_engine";
 
 // The node answers with one or two character keys to keep lines short
 // (iot-node/src/shared/presentation/controllers/SerialProtocol.h, docs/tundra/SERIAL_API.md):
@@ -28,7 +32,6 @@ export const WebSerialHook = {
     this.port = null;
     this.reader = null;
     this.writer = null;
-    this.readableClosed = null;
     this.keepReading = false;
     this.pending = null;
     this.queue = Promise.resolve();
@@ -60,6 +63,25 @@ export const WebSerialHook = {
     this.el.addEventListener("click", this.onClick);
 
     this.handleEvent("serial_commands", ({ commands }) => this.runCommands(commands));
+
+    this.handleEvent("serial_request", async ({ ref, command }) => {
+      try {
+        const response = await this.enqueue(command);
+        this.pushEvent("serial_response", { ref, ok: true, response });
+      } catch (e) {
+        this.pushEvent("serial_response", { ref, ok: false, message: e.message });
+      }
+    });
+
+    this.sync = new SyncEngine({
+      send: (command) => this.enqueue(command),
+      push: (event, payload) => new Promise((resolve) => this.pushEvent(event, payload, resolve)),
+      log: (text) => this.log(text),
+    });
+    this.handleEvent("sync_start", ({ acked }) =>
+      this.sync.start({ acked }).catch((e) => this.sync.stop(e.message)),
+    );
+    this.handleEvent("sync_stop", () => this.sync.stop());
 
     if (!("serial" in navigator)) {
       this.log("Web Serial is not available in this browser. Use Chrome, Edge or Brave.");
@@ -130,10 +152,9 @@ export const WebSerialHook = {
     this.port = null;
     this.keepReading = false;
     this.rejectPending(new Error("port closed"));
+    if (this.sync?.running) this.sync.state = null;
 
-    // The port can only be closed once the pipe into the decoder has finished
     if (this.reader) await this.reader.cancel().catch(() => {});
-    if (this.readableClosed) await this.readableClosed;
     if (this.writer) {
       await this.writer.close().catch(() => {});
       this.writer.releaseLock();
@@ -156,24 +177,20 @@ export const WebSerialHook = {
     });
   },
 
+  // Reads raw bytes: JSON lines and binary sync frames share the port
   async readLoop() {
-    const decoder = new TextDecoderStream();
-    // Rejects when the device is lost or the reader is cancelled; handled by disconnect()
-    this.readableClosed = this.port.readable.pipeTo(decoder.writable).catch(() => {});
-    this.reader = decoder.readable.getReader();
+    this.reader = this.port.readable.getReader();
     this.writer = this.port.writable.getWriter();
 
-    let buffer = "";
+    const frames = new FrameReader({
+      onLine: (line) => this.handleLine(line),
+      onFrame: (frame) => this.sync.onFrame(frame),
+    });
     try {
       while (this.keepReading) {
         const { value, done } = await this.reader.read();
         if (done) break;
-        if (!value) continue;
-
-        buffer += value;
-        const lines = buffer.split("\n");
-        buffer = lines.pop();
-        lines.forEach((line) => this.handleLine(line.trim()));
+        if (value) frames.push(value);
       }
     } catch (e) {
       this.log("Read error: " + e.message);
@@ -191,7 +208,7 @@ export const WebSerialHook = {
 
     // Firmware log lines and JSON responses can share a line; take the JSON part
     const start = line.indexOf('{"s":');
-    if (start < 0 || !this.pending) return;
+    if (start < 0) return;
 
     let response;
     try {
@@ -199,9 +216,11 @@ export const WebSerialHook = {
     } catch (_e) {
       return;
     }
-    // Printed on boot, not an answer to our command
-    if (response.m === "Serial controller ready") return;
+    // Messages the node prints on its own, not answers to our commands
+    if (response.m === "Stream end") return this.sync.onStreamEnd(response.l);
+    if (response.m === "Serial controller ready" || response.m === "Service mode idle, going to sleep") return;
 
+    if (!this.pending) return;
     const { resolve, timer } = this.pending;
     clearTimeout(timer);
     this.pending = null;
@@ -234,13 +253,14 @@ export const WebSerialHook = {
       this.pending = { resolve, reject, timer };
     });
 
+    // Logged before writing: the answer can arrive before the write resolves
+    const shown =
+      command.command === "wifi" && command.data?.password
+        ? JSON.stringify({ ...command, data: { ...command.data, password: "••••••" } })
+        : line;
+    this.log("-> " + shown);
     try {
       await this.writer.write(new TextEncoder().encode(line + "\n"));
-      const shown =
-        command.command === "wifi" && command.data?.password
-          ? JSON.stringify({ ...command, data: { ...command.data, password: "••••••" } })
-          : line;
-      this.log("-> " + shown);
     } catch (e) {
       this.rejectPending(e);
       this.handleLostPort();
