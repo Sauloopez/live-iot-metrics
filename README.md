@@ -328,7 +328,8 @@ mix test                     # tests del servidor (requiere la base de datos lev
 mix precommit                # compilación estricta, formato y tests
 
 cd iot-node
-pio test                     # tests del firmware (requiere la ESP32 conectada)
+pio test -e native           # tests del firmware que corren en el PC (almacenamiento)
+pio test -e coap             # tests del firmware en la placa (requiere la ESP32 conectada)
 ```
 
 ## Licencia

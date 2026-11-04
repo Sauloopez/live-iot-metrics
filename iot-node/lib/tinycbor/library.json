@@ -1,0 +1,12 @@
+{
+  "name": "tinycbor",
+  "version": "0.6.0",
+  "description": "Intel TinyCBOR (encoder and parser only), vendored from https://github.com/intel/tinycbor tag v0.6.0 (d393c16)",
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "src"
+  }
+}
