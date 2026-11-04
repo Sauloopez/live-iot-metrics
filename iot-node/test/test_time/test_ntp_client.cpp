@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <unity.h>
-#include "../../src/infrastructure/time/NtpClient.h"
+#include "../../src/shared/infrastructure/time/NtpClient.h"
 
 // Note: Testing NTP synchronization reliably requires an active WiFi connection,
 // which is usually out of scope for pure unit tests since it depends on the local network.

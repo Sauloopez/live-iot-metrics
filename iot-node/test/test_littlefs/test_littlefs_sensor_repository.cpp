@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <unity.h>
 #include <LittleFS.h>
-#include "../../src/infrastructure/repositories/LittleFsSensorRepository.h"
+#include "../../src/shared/infrastructure/repositories/LittleFsSensorRepository.h"
 
 // Note: These tests require a real ESP32 device to run since they use the actual
 // LittleFS library which interacts with the ESP32 Flash memory.

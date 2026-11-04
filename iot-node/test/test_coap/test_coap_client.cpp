@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <unity.h>
-#include "../../src/infrastructure/coap/CoapClient.h"
+#include "../../src/shared/infrastructure/coap/CoapClient.h"
 
 // Note: These tests test the initial state and validation of the CoAP client.
 // Full integration testing sending packets requires a live backend and WiFi.

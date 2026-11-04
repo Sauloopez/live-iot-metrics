@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <unity.h>
-#include "../../src/infrastructure/repositories/NvsRepositories.h"
+#include "../../src/shared/infrastructure/repositories/NvsRepositories.h"
 
 // Note: These tests require a real ESP32 device to run since they use the actual
 // Preferences library which interacts with the ESP32 Non-Volatile Storage.

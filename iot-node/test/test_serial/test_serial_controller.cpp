@@ -2,9 +2,9 @@
 #include <unity.h>
 #include <ArduinoJson.h>
 
-#include "../../src/domain/repositories/IRepositories.h"
-#include "../../src/usecases/UseCases.h"
-#include "../../src/presentation/controllers/SerialController.h"
+#include "../../src/shared/domain/repositories/IRepositories.h"
+#include "../../src/shared/usecases/UseCases.h"
+#include "../../src/shared/presentation/controllers/SerialController.h"
 
 // --- Mock Repositories for testing without actual hardware memory side-effects ---
 

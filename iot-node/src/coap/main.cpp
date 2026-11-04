@@ -4,19 +4,19 @@
 #include <esp_mac.h>
 
 // Infrastructure Repositories
-#include "infrastructure/repositories/NvsRepositories.h"
-#include "infrastructure/repositories/LittleFsSensorRepository.h"
+#include "../shared/infrastructure/repositories/NvsRepositories.h"
+#include "../shared/infrastructure/repositories/LittleFsSensorRepository.h"
 
 // Infrastructure Services
-#include "infrastructure/coap/CoapClient.h"
-#include "infrastructure/time/NtpClient.h"
-#include "infrastructure/sensors/SensorReader.h"
+#include "../shared/infrastructure/coap/CoapClient.h"
+#include "../shared/infrastructure/time/NtpClient.h"
+#include "../shared/infrastructure/sensors/SensorReader.h"
 
 // Use Cases
-#include "usecases/UseCases.h"
+#include "../shared/usecases/UseCases.h"
 
 // Presentation Controllers
-#include "presentation/controllers/SerialController.h"
+#include "../shared/presentation/controllers/SerialController.h"
 
 // Global instances for Dependency Injection
 NvsWifiConfigRepository wifiRepo;
