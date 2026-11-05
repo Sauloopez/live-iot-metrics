@@ -8,6 +8,7 @@ defmodule LiveMetricsWeb.DeviceSyncLive do
   """
   use LiveMetricsWeb, :live_view
 
+  alias LiveMetrics.Health.NodeStatusReport
   alias LiveMetrics.Sync.Ingest
 
   @storage_variants ~w(isolated)
@@ -100,6 +101,7 @@ defmodule LiveMetricsWeb.DeviceSyncLive do
   end
 
   def handle_event("serial_response", %{"ref" => "status", "ok" => true, "response" => r}, socket) do
+    NodeStatusReport.record(socket.assigns.mac, socket.assigns.variant, "usb", r)
     {:noreply, assign(socket, :node_status, r)}
   end
 

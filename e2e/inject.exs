@@ -1,5 +1,5 @@
 # Sends sensor readings to the running server over real CoAP/UDP, like the ESP32 does.
-# Usage: elixir inject.exs <mac> <mode> [count] [delay_ms]
+# Usage: elixir e2e/inject.exs <mac> <mode> [count] [delay_ms]   (the server must be running)
 #   mode "register" -> one in-range reading per sensor
 #   mode "live"     -> readings that drift and leave the target range
 defmodule CoapInject do

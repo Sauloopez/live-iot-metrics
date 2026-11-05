@@ -1,5 +1,7 @@
-# Creates an area, recipe, batch tracking the node's sensors, and 20 minutes of history.
-# Run with: mix run --no-start /tmp/livemetrics-e2e/seed.exs <mac>
+# Creates an area, a reading definition, a reading tracking the node's sensors, and 20 minutes
+# of history. Used by charts.mjs; names start with "e2e-" so cleanup.exs removes them.
+# Run from the project root: mix run --no-start e2e/seed.exs <mac>
+Logger.configure(level: :warning)
 Application.ensure_all_started(:postgrex)
 Application.ensure_all_started(:ecto_sql)
 {:ok, _} = LiveMetrics.Repo.start_link()
@@ -15,12 +17,12 @@ node = Repo.get_by!(Nodes, mac: mac)
 sensors = Repo.all(from s in Sensor, where: s.node_id == ^node.id)
 
 area =
-  Repo.get_by(Area, name: "Invernadero E2E") ||
-    elem(Area.create_area(%{name: "Invernadero E2E", description: "Playwright test area"}), 1)
+  Repo.get_by(Area, name: "e2e-greenhouse") ||
+    elem(Area.create_area(%{name: "e2e-greenhouse", description: "Playwright test area"}), 1)
 
 {:ok, recipe} =
   Recipes.create(%{
-    name: "Germinación E2E #{System.os_time(:second)}",
+    name: "e2e-germination-#{System.os_time(:second)}",
     description: "Seeded by the e2e test",
     property_ranges:
       Enum.map(ranges, fn {type, {min, max}} -> %{sensor_type: type, min_value: min, max_value: max} end)
@@ -30,7 +32,7 @@ now = DateTime.utc_now()
 
 {:ok, batch} =
   RecipeBatch.create(%RecipeBatch{area_batch: %AreaBatch{area_id: area.id}}, %{
-    name: "Lote E2E",
+    name: "e2e-reading",
     started_at: DateTime.add(now, -30, :minute),
     recipe_id: recipe.id
   })

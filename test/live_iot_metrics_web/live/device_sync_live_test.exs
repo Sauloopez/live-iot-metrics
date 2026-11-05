@@ -79,6 +79,10 @@ defmodule LiveMetricsWeb.DeviceSyncLiveTest do
 
     report_node(view, 201, 0)
     assert has_element?(view, "#node-pending", "200")
+    # Each status received is kept as a health report
+    assert [%{transport: "usb", battery_percent: 69}] =
+             LiveMetrics.Health.NodeStatusReport.recent(@mac)
+
     assert has_element?(view, "#node-battery", "69%")
     assert has_element?(view, "#node-storage", "50%")
   end

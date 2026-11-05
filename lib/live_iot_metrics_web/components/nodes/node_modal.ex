@@ -1,13 +1,17 @@
 defmodule LiveMetricsWeb.Components.NodeModal do
+  alias LiveMetrics.Health.{NodeHealth, NodeStatusReport}
   alias LiveMetrics.Models.{Nodes, Sensor}
   use LiveMetricsWeb, :live_component
 
   @impl true
   def update(%{node_id: node_id} = assigns, socket) do
+    node = Nodes.find_with_sensors(node_id)
+
     {:ok,
      socket
      |> assign(assigns)
-     |> assign(:node, Nodes.find_with_sensors(node_id))}
+     |> assign(:node, node)
+     |> assign(:reports, NodeStatusReport.recent(node.mac, 10))}
   end
 
   attr :node_id, :any, required: true
@@ -32,6 +36,38 @@ defmodule LiveMetricsWeb.Components.NodeModal do
             <span class="text-base-content/60">Description</span>
             <span>{@node.description || "-"}</span>
           </div>
+        </div>
+
+        <div class="divider">Health</div>
+
+        <p
+          :if={@reports == []}
+          id="node-health-empty"
+          class="text-center text-base-content/60 py-2 text-sm"
+        >
+          No status reports yet. Nodes with local storage report it when connected over USB.
+        </p>
+        <div :if={@reports != []} class="overflow-x-auto mb-4">
+          <.table id="node-health-reports" rows={@reports}>
+            <:col :let={r} label="Reported (UTC)">
+              <span class="font-mono text-xs">
+                {Calendar.strftime(r.reported_at, "%Y-%m-%d %H:%M")}
+              </span>
+            </:col>
+            <:col :let={r} label="Via">{r.transport}</:col>
+            <:col :let={r} label="Battery">
+              <span class="tabular-nums">{r.battery_percent}% · {r.battery_mv} mV</span>
+            </:col>
+            <:col :let={r} label="Storage">
+              <span class="tabular-nums">
+                {round(NodeHealth.storage_ratio(r) * 100)}% · {r.pending || 0} pending
+              </span>
+            </:col>
+            <:col :let={r} label="Boots">{r.boot_count}</:col>
+            <:col :let={r} label="Clock">
+              {if r.clock_valid, do: "ok", else: "not set"}
+            </:col>
+          </.table>
         </div>
 
         <div class="divider">Sensors</div>
