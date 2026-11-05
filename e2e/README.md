@@ -27,13 +27,14 @@ Las capturas quedan en `e2e/shots/`.
 
 ## Pruebas
 
-| Archivo              | Qué verifica                                                                                                                                                                 |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `definitions.mjs`    | Definiciones de lectura con tipo libre, sugerencias y validación; iniciar una lectura; diálogos de borrado (Escape, definición en uso); borrar lectura y luego la definición |
-| `device_setup.mjs`   | `/devices/setup`: identificación por MAC, preset, agregar/editar sensores sincronizados, cambio en el nodo detectado, "Send all", "Delete all"                               |
-| `device_sync.mjs`    | `/devices/sync`: extracción por USB con créditos, trama dañada reenviada, liberación tras confirmar, sin duplicados, hora corregida                                          |
-| `devices_health.mjs` | Devices: batería, almacenamiento, "visto hace" y alertas a partir del `status` del nodo; historial en el modal                                                               |
-| `charts.mjs`         | Gráficos en vivo de una lectura: tooltip, estado de rango, tabla, tema oscuro, eje en UTC, mediciones en vivo por CoAP                                                       |
+| Archivo              | Qué verifica                                                                                                                                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `definitions.mjs`    | Definiciones de lectura con tipo libre, sugerencias y validación; iniciar una lectura; diálogos de borrado (Escape, definición en uso); borrar lectura y luego la definición                       |
+| `device_setup.mjs`   | `/devices/setup`: identificación por MAC, preset, agregar/editar sensores sincronizados, cambio en el nodo detectado, "Send all", "Delete all"                                                     |
+| `device_sync.mjs`    | `/devices/sync`: extracción por USB con créditos, trama dañada reenviada, liberación tras confirmar, sin duplicados, hora corregida                                                                |
+| `devices_health.mjs` | Devices: batería, almacenamiento, "visto hace" y alertas a partir del `status` del nodo; historial en el modal                                                                                     |
+| `coap_sync.mjs`      | Almacenar y reenviar por CoAP real (`coap_sync.exs` simula el nodo): ventana, confirmación asíncrona, trama perdida y reenviada, sin inundar al servidor; el nodo aparece en Devices con su estado |
+| `charts.mjs`         | Gráficos en vivo de una lectura: tooltip, estado de rango, tabla, tema oscuro, eje en UTC, mediciones en vivo por CoAP                                                                             |
 
 ## Datos de prueba
 

@@ -17,7 +17,9 @@ defmodule CoapInject do
 
     case :gen_udp.recv(sock, 0, 2000) do
       {:ok, {_, _, <<_::4, _::4, code, _::binary>>}} ->
-        IO.puts("sent #{type}=#{Float.round(value, 2)} -> ack code #{div(code, 32)}.#{rem(code, 32)}")
+        IO.puts(
+          "sent #{type}=#{Float.round(value, 2)} -> ack code #{div(code, 32)}.#{rem(code, 32)}"
+        )
 
       {:error, reason} ->
         IO.puts("sent #{type}=#{value} -> no ack (#{inspect(reason)})")

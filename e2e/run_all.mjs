@@ -9,6 +9,7 @@ const tests = [
   "device_setup.mjs",
   "device_sync.mjs",
   "devices_health.mjs",
+  "coap_sync.mjs",
   "charts.mjs",
 ];
 const failed = [];

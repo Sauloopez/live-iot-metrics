@@ -9,6 +9,7 @@ import {
   ROOT_DIR,
   checker,
   fakeMac,
+  gotoLive,
   launch,
   shot,
 } from "./support.mjs";
@@ -33,7 +34,7 @@ const batchId = run("mix", ["run", "--no-start", "e2e/seed.exs", MAC]).match(
   /BATCH_ID=(\S+)/,
 )[1];
 
-await page.goto(`${BASE_URL}/recipe-batch/${batchId}`);
+await gotoLive(page, `/recipe-batch/${batchId}`);
 await page.waitForSelector("[phx-hook=ChartHook] canvas", { timeout: 15000 });
 await page.waitForTimeout(1200);
 

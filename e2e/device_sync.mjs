@@ -3,7 +3,15 @@
 // second extraction, and the node clock corrected at the end.
 // Usage: node device_sync.mjs [measurements]
 import { installFakeNode } from "./fake_node.mjs";
-import { BASE_URL, checker, fakeMac, launch, shot } from "./support.mjs";
+import {
+  BASE_URL,
+  checker,
+  fakeMac,
+  gotoLive,
+  launch,
+  shot,
+  waitForLiveView,
+} from "./support.mjs";
 
 const TOTAL = Number(process.argv[2] || 1000);
 const MAC = fakeMac(1);
@@ -26,9 +34,10 @@ await installFakeNode(page, {
   ],
 });
 
-await page.goto(`${BASE_URL}/devices`);
+await gotoLive(page, "/devices");
 await page.click("#device-sync-link");
 await page.waitForURL("**/devices/sync");
+await waitForLiveView(page);
 await page.click("#btn-connect");
 await page.waitForSelector("#node-summary");
 await page.waitForFunction(

@@ -1,7 +1,14 @@
 // Reading definitions and readings: free-text sensor types with suggestions and validation,
 // a reading started from the dashboard, the delete dialogs (Escape cancels, a definition in use
 // is blocked) and deleting a reading and then its definition.
-import { BASE_URL, checker, launch, shot } from "./support.mjs";
+import {
+  BASE_URL,
+  checker,
+  gotoLive,
+  launch,
+  shot,
+  waitForLiveView,
+} from "./support.mjs";
 
 const RUN = Date.now();
 const DEFINITION = `e2e-definition-${RUN}`;
@@ -13,7 +20,7 @@ const { browser, page, errors } = await launch({
 });
 
 // --- Create a definition with a free-text type ---
-await page.goto(`${BASE_URL}/recipes`);
+await gotoLive(page, "/recipes");
 await page.click("#btn-add-recipe");
 const type = page.locator(
   "input[name='recipe[property_ranges][0][sensor_type]']",
@@ -64,7 +71,7 @@ t.check(
 );
 
 // --- Start a reading of that definition ---
-await page.goto(`${BASE_URL}/`);
+await gotoLive(page, "/");
 await page.click("#btn-add-area");
 await page.fill("#add-area-form input[name=name]", AREA);
 await page.fill(
@@ -85,7 +92,7 @@ await card.waitFor();
 t.check("reading started from the dashboard", true);
 
 // --- A definition in use can not be deleted ---
-await page.goto(`${BASE_URL}/recipes`);
+await gotoLive(page, "/recipes");
 await definitionRow.locator("[id^=delete-recipe-]").click();
 await page.waitForSelector("#delete-recipe-dialog");
 t.check(
@@ -109,10 +116,11 @@ await page.waitForSelector("#delete-batch-dialog");
 await shot(page, "definitions-delete-reading");
 await page.click("#delete-batch-dialog-confirm");
 await page.waitForURL(`${BASE_URL}/`);
+await waitForLiveView(page);
 t.check("reading deleted, back on the dashboard", true);
 
 // --- Now the definition can be deleted ---
-await page.goto(`${BASE_URL}/recipes`);
+await gotoLive(page, "/recipes");
 await definitionRow.locator("[id^=delete-recipe-]").click();
 await page.click("#delete-recipe-dialog-confirm");
 await definitionRow.waitFor({ state: "detached" });

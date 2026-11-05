@@ -47,6 +47,20 @@ export async function launch({
   return { browser, page, errors };
 }
 
+// Opens a LiveView page and waits until its socket is connected: before that the page is
+// already rendered by the server but clicks are not delivered yet
+export async function gotoLive(page, path) {
+  await page.goto(`${BASE_URL}${path}`);
+  await waitForLiveView(page);
+}
+
+// After a live navigation (link click) the new LiveView connects again
+export function waitForLiveView(page) {
+  return page.waitForSelector("[data-phx-main].phx-connected", {
+    timeout: 15000,
+  });
+}
+
 // Saves e2e/shots/<name>.png of a page (full page) or of a single element
 export function shot(target, name) {
   mkdirSync(SHOTS_DIR, { recursive: true });

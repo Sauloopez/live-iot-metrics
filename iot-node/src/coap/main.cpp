@@ -47,7 +47,7 @@ static const uint32_t BATTERY_R2 = 100000;
 static const uint32_t WIFI_RETRY_MS = 30000;
 static const uint32_t SYNC_INTERVAL_MS = 5000;
 static const uint32_t STATUS_INTERVAL_MS = 10 * 60 * 1000;
-static const uint32_t MAX_FRAMES_PER_SYNC = 8;  // keeps the loop responsive between batches
+static const uint32_t MAX_EXCHANGES_PER_SYNC = 8;  // keeps the loop responsive between batches
 static const uint32_t MIN_VALID_TIME = 1704067200;  // 2024-01-01
 
 // --- Components ---
@@ -74,6 +74,7 @@ BatteryMonitor battery(PIN_BATTERY, BATTERY_R1, BATTERY_R2);
 CoapClient coapClient;
 CoapSyncTransport syncTransport(coapClient);
 SerialController* serialController = nullptr;
+RemoteSync* remoteSync = nullptr;  // kept between sessions: it remembers how far it sent
 
 String macAddress;
 uint8_t macBytes[6];
@@ -141,15 +142,15 @@ static void sendStatus() {
 static void syncStoredMeasurements() {
     if (!sensorsAnnounced) sensorsAnnounced = announceSensors();
 
-    RemoteSync remote(macBytes);
     RemoteSync::Result result;
-    storageTask.withStore([&](IMeasurementStore& s) { result = remote.run(s, syncTransport, MAX_FRAMES_PER_SYNC); });
+    storageTask.withStore(
+        [&](IMeasurementStore& s) { result = remoteSync->run(s, syncTransport, MAX_EXCHANGES_PER_SYNC); });
 
     // No NTP and no RTC: take the time from the server's answer
     if (result.serverTime >= MIN_VALID_TIME && !nodeClock.isValid()) nodeClock.set(result.serverTime);
 
     if (result.frames > 0) {
-        Serial.printf("Sync: %lu frame(s), server has up to seq %lu%s\n", static_cast<unsigned long>(result.frames),
+        Serial.printf("Sync: %lu exchange(s), server has up to seq %lu%s\n", static_cast<unsigned long>(result.frames),
                       static_cast<unsigned long>(result.ackedSeq), result.transportError ? " (server unreachable)" : "");
     }
 }
@@ -194,6 +195,7 @@ void setup() {
 
     macAddress = deviceMac();
     esp_read_mac(macBytes, ESP_MAC_WIFI_STA);
+    remoteSync = new RemoteSync(macBytes);
 
     // The data partition only exists with partitions/tundra.csv
     storageMode = dataFs.begin(true, "/measurements", 5, "data") && store.open() && storageTask.begin();

@@ -13,6 +13,9 @@ defmodule LiveMetrics.Application do
       {DNSCluster, query: Application.get_env(:live_iot_metrics, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LiveMetrics.PubSub},
       LiveMetrics.MetricsBuffer,
+      LiveMetrics.SyncBuffer,
+      LiveMetrics.StatusBuffer,
+      LiveMetrics.SensorsBuffer,
       # Start a worker by calling: LiveMetrics.Worker.start_link(arg)
       # {LiveMetrics.Worker, arg},
       LiveMetrics.CoapServer,

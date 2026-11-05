@@ -7,7 +7,18 @@ Application.ensure_all_started(:ecto_sql)
 {:ok, _} = LiveMetrics.Repo.start_link()
 
 alias LiveMetrics.Repo
-alias LiveMetrics.Models.{Area, AreaBatch, BatchSensor, Nodes, Recipes, RecipeBatch, Sensor, SensorReading}
+
+alias LiveMetrics.Models.{
+  Area,
+  AreaBatch,
+  BatchSensor,
+  Nodes,
+  Recipes,
+  RecipeBatch,
+  Sensor,
+  SensorReading
+}
+
 import Ecto.Query
 
 [mac] = System.argv()
@@ -25,7 +36,9 @@ area =
     name: "e2e-germination-#{System.os_time(:second)}",
     description: "Seeded by the e2e test",
     property_ranges:
-      Enum.map(ranges, fn {type, {min, max}} -> %{sensor_type: type, min_value: min, max_value: max} end)
+      Enum.map(ranges, fn {type, {min, max}} ->
+        %{sensor_type: type, min_value: min, max_value: max}
+      end)
   })
 
 now = DateTime.utc_now()

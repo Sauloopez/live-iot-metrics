@@ -27,4 +27,6 @@ counts =
 %{num_rows: areas} = Repo.query!("DELETE FROM areas WHERE name LIKE 'e2e-%'")
 %{num_rows: recipes} = Repo.query!("DELETE FROM recipes WHERE name LIKE 'e2e-%'")
 
-IO.puts("e2e cleanup: " <> Enum.join(counts ++ ["#{areas} areas", "#{recipes} definitions"], ", "))
+IO.puts(
+  "e2e cleanup: " <> Enum.join(counts ++ ["#{areas} areas", "#{recipes} definitions"], ", ")
+)

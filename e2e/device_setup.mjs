@@ -2,7 +2,15 @@
 // sensor from a preset (saved with a system id and sent to the node), edit it, detect a value
 // changed on the node, resend everything, and delete all sensors on both sides.
 import { installFakeNode } from "./fake_node.mjs";
-import { BASE_URL, checker, fakeMac, launch, shot } from "./support.mjs";
+import {
+  BASE_URL,
+  checker,
+  fakeMac,
+  gotoLive,
+  launch,
+  shot,
+  waitForLiveView,
+} from "./support.mjs";
 
 const MAC = fakeMac(3);
 const t = checker("Device setup over USB");
@@ -18,9 +26,10 @@ await installFakeNode(page, {
   ],
 });
 
-await page.goto(`${BASE_URL}/devices`);
+await gotoLive(page, "/devices");
 await page.click("#device-setup-link");
 await page.waitForURL("**/devices/setup");
+await waitForLiveView(page);
 t.check(
   "sensors locked before connecting",
   await page.isVisible("#sensors-locked"),

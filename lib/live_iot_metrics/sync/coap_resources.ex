@@ -1,28 +1,31 @@
 defmodule LiveMetrics.Sync.CoapResources do
   @moduledoc """
   CoAP resources of nodes that store their measurements and synchronize when they have a
-  network (docs/tundra/PLAN.md, section 6.2). Same protocol as the USB extraction.
+  network. Same protocol as the USB extraction.
 
-    * `POST /sync`    `MAC (6 bytes) · DATA frame` →
-                      `acked_seq u32 · server_time u32` (little endian). The node releases
-                      everything up to `acked_seq` and corrects its clock.
+  Every request is only validated here and queued in its buffer; the database work happens in
+  the background and in batches, so the node gets its answer right away.
+
+    * `POST /sync`    `MAC (6 bytes) · DATA frame` → `acked_seq u32 · server_time u32`
+                      (little endian). `acked_seq` is the last **processed** watermark: the
+                      frame just sent is confirmed in a later exchange. A frame with no
+                      records only asks for the watermark. Queued in `LiveMetrics.SyncBuffer`.
     * `POST /status`  JSON `{"mc": MAC, "v": variant, ...status keys}` (the serial `status`
-                      response plus the node identity) → health report, transport `coap`
+                      response plus the node identity) → health report, transport `coap`.
+                      Queued in `LiveMetrics.StatusBuffer`.
     * `POST /sensors` JSON `{"mc": MAC, "d": [sensor list items]}` → registers the node's
-                      sensors so its measurements get the right type
+                      sensors so its measurements get the right type. Queued in
+                      `LiveMetrics.SensorsBuffer`.
   """
-  alias LiveMetrics.MetricsBuffer
-  alias LiveMetrics.Health.NodeStatusReport
-  alias LiveMetrics.Models.{Nodes, Sensor}
-  alias LiveMetrics.Sync.{DataFrame, Ingest}
+  alias LiveMetrics.{MetricsBuffer, SensorsBuffer, StatusBuffer, SyncBuffer}
+  alias LiveMetrics.Sync.DataFrame
 
   @spec sync(binary()) :: {:ok, binary()} | {:error, String.t()}
   def sync(<<mac_bytes::binary-size(6), frame::binary>>) do
-    with {:ok, %{records: records}} <- DataFrame.parse(frame),
-         {:ok, result} <- Ingest.ingest(format_mac(mac_bytes), records) do
-      {:ok, <<result.acked_seq::little-32, System.os_time(:second)::little-32>>}
-    else
-      {:error, reason} -> {:error, to_string(reason)}
+    with {:ok, %{first_seq: first_seq, records: records}} <- DataFrame.parse(frame) do
+      mac = format_mac(mac_bytes)
+      if records != <<>>, do: SyncBuffer.push(mac, first_seq, records)
+      {:ok, <<SyncBuffer.watermark(mac)::little-32, System.os_time(:second)::little-32>>}
     end
   end
 
@@ -30,28 +33,23 @@ defmodule LiveMetrics.Sync.CoapResources do
 
   @spec status(binary()) :: :ok | {:error, String.t()}
   def status(payload) do
-    with {:ok, %{"mc" => mac} = status} when is_binary(mac) <- Jason.decode(payload),
-         {:ok, _report} <- NodeStatusReport.record(mac, status["v"], "coap", status) do
-      :ok
-    else
-      _ -> {:error, "invalid status"}
+    case Jason.decode(payload) do
+      {:ok, %{"mc" => mac} = status} when is_binary(mac) ->
+        StatusBuffer.push(normalize_mac(mac), status)
+
+      _ ->
+        {:error, "invalid status"}
     end
   end
 
   @spec sensors(binary()) :: :ok | {:error, String.t()}
   def sensors(payload) do
-    with {:ok, %{"mc" => mac, "d" => sensors}} when is_binary(mac) and is_list(sensors) <-
-           Jason.decode(payload),
-         {:ok, node} <- Nodes.ensure(mac) do
-      Enum.each(sensors, fn
-        %{"i" => id, "t" => type} = s when is_integer(id) and is_binary(type) ->
-          Sensor.update_or_create(node, id, String.downcase(type), (s["pr"] || 1) * 1.0)
+    case Jason.decode(payload) do
+      {:ok, %{"mc" => mac, "d" => sensors}} when is_binary(mac) and is_list(sensors) ->
+        SensorsBuffer.push(normalize_mac(mac), sensors)
 
-        _invalid ->
-          :skip
-      end)
-    else
-      _ -> {:error, "invalid sensor list"}
+      _ ->
+        {:error, "invalid sensor list"}
     end
   end
 
@@ -119,6 +117,8 @@ defmodule LiveMetrics.Sync.CoapResources do
     MetricsBuffer.enqueue(mac, sensor_id, sensor_type, precision, value, DateTime.utc_now())
     :ok
   end
+
+  defp normalize_mac(mac), do: mac |> String.trim() |> String.upcase()
 
   defp format_mac(bytes) do
     bytes

@@ -84,10 +84,17 @@ defmodule LiveMetrics.CoapServerTest do
 
   describe "nodes with local storage" do
     alias LiveMetrics.Health.NodeStatusReport
+    alias LiveMetrics.{SensorsBuffer, StatusBuffer, SyncBuffer}
     alias LiveMetrics.Sync.{DataFrame, Ingest}
 
     @mac_bytes <<0x02, 0x00, 0x00, 0x00, 0xC0, 0x01>>
     @mac "02:00:00:00:C0:01"
+
+    # The sandbox rolls the database back after each test; the cached watermarks must go too
+    setup do
+      SyncBuffer.clear_cache()
+      on_exit(&SyncBuffer.clear_cache/0)
+    end
 
     defp record(seq, sensor_id, value),
       do:
@@ -99,50 +106,64 @@ defmodule LiveMetrics.CoapServerTest do
       @mac_bytes <> DataFrame.build(0, Enum.min(seqs), Enum.count(seqs), records)
     end
 
-    test "POST /sync stores the frame and answers the watermark and the server time" do
-      assert {:ok, :created, {:coap_content, _, _, _, _, <<acked::little-32, time::little-32>>}} =
-               CoapServer.coap_post(
-                 @ch_id,
-                 ["sync"],
-                 nil,
-                 content(sync_payload(1..5), :undefined)
-               )
+    # A frame with no records only asks for the watermark
+    defp poll_payload, do: @mac_bytes <> DataFrame.build(0, 1, 0, <<>>)
 
-      assert acked == 5
-      assert abs(time - System.os_time(:second)) < 5
-      assert Ingest.acked_seq(@mac) == 5
+    defp post_sync(payload) do
+      {:ok, :created, {:coap_content, _, _, _, _, <<acked::little-32, time::little-32>>}} =
+        CoapServer.coap_post(@ch_id, ["sync"], nil, content(payload, :undefined))
 
-      # A resend is confirmed again without storing twice
-      assert {:ok, :created, {:coap_content, _, _, _, _, <<5::little-32, _::32>>}} =
-               CoapServer.coap_post(
-                 @ch_id,
-                 ["sync"],
-                 nil,
-                 content(sync_payload(3..5), :undefined)
-               )
+      {acked, time}
     end
 
-    test "POST /sync rejects a damaged frame" do
+    test "POST /sync answers at once and confirms the frame in a later exchange" do
+      # Answered before anything is stored: still the previous watermark
+      {acked, time} = post_sync(sync_payload(1..5))
+      assert acked == 0
+      assert abs(time - System.os_time(:second)) < 5
+
+      SyncBuffer.drain()
+      assert Ingest.acked_seq(@mac) == 5
+      assert {5, _} = post_sync(poll_payload())
+    end
+
+    test "resends and out of order frames are stored once and in order" do
+      post_sync(sync_payload(6..10))
+      post_sync(sync_payload(1..5))
+      post_sync(sync_payload(3..7))
+      SyncBuffer.drain()
+
+      assert Ingest.acked_seq(@mac) == 10
+      node = Repo.get_by!(Nodes, mac: @mac)
+      sensor = Repo.get_by!(Sensor, node_id: node.id, node_sensor_id: 1)
+
+      assert Repo.aggregate(from(r in SensorReading, where: r.sensor_id == ^sensor.id), :count) ==
+               10
+    end
+
+    test "POST /sync rejects a damaged frame without queueing it" do
       <<head::binary-size(20), byte, rest::binary>> = sync_payload(1..3)
       damaged = <<head::binary, Bitwise.bxor(byte, 0xFF), rest::binary>>
 
       assert CoapServer.coap_post(@ch_id, ["sync"], nil, content(damaged, :undefined)) ==
                {:error, :bad_request}
 
+      SyncBuffer.drain()
       assert Ingest.acked_seq(@mac) == 0
     end
 
-    test "POST /sensors types the measurements sent afterwards" do
+    test "POST /sensors types the measurements of the node" do
       sensors =
         Jason.encode!(%{
-          "mc" => @mac,
+          "mc" => String.downcase(@mac),
           "d" => [%{"i" => 7, "t" => "Water_Temperature", "pr" => 1}]
         })
 
       assert {:ok, :created, _} = CoapServer.coap_post(@ch_id, ["sensors"], nil, content(sensors))
+      SensorsBuffer.drain()
 
-      {:ok, :created, _} =
-        CoapServer.coap_post(@ch_id, ["sync"], nil, content(sync_payload(1..2, 7), :undefined))
+      post_sync(sync_payload(1..2, 7))
+      SyncBuffer.drain()
 
       node = Repo.get_by!(Nodes, mac: @mac)
 
@@ -160,6 +181,7 @@ defmodule LiveMetrics.CoapServerTest do
         })
 
       assert {:ok, :created, _} = CoapServer.coap_post(@ch_id, ["status"], nil, content(status))
+      StatusBuffer.drain()
 
       assert [%{transport: "coap", battery_percent: 68, pending: 12}] =
                NodeStatusReport.recent(@mac)

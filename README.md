@@ -311,6 +311,18 @@ Los nodos envían `POST coap://<servidor>:5683/metrics` (mensaje confirmable, `a
 
 El servidor agrupa las mediciones en `MetricsBuffer` (grupos de 10 o cada segundo) y las inserta en TimescaleDB; nodos y sensores nuevos se crean en la misma inserción.
 
+### Nodos con almacenamiento
+
+Un nodo CoAP con la partición de datos (`partitions/tundra.csv`) guarda cada medición y la sube por lotes con confirmación, así no pierde datos cuando se cae el WiFi:
+
+| Recurso         | Cuerpo                                                                       | Respuesta                                           |
+| --------------- | ---------------------------------------------------------------------------- | --------------------------------------------------- |
+| `POST /sync`    | MAC (6 bytes) · trama DATA ([formato](docs/tundra/SERIAL_API.md#trama-data)) | `acked_seq u32 · server_time u32` (_little endian_) |
+| `POST /sensors` | JSON `{"mc": MAC, "d": [{"i": id, "t": tipo, "pr": precisión}]}`             | `OK`                                                |
+| `POST /status`  | JSON `{"mc": MAC, "v": variante, …}` con las claves del comando `status`     | `OK`                                                |
+
+Todas las peticiones se **validan y encolan**; la base de datos se actualiza en segundo plano y por lotes (`SyncBuffer`, `SensorsBuffer`, `StatusBuffer`), así el nodo no espera. Por eso `acked_seq` es la **última marca ya procesada**: la confirmación de una trama llega en un intercambio posterior. El nodo envía en secuencia con una ventana de 64 mediciones sin confirmar, consulta la marca con una trama vacía cuando no tiene nada nuevo, y solo libera lo confirmado; si la marca no avanza en 3 consultas seguidas, reenvía desde ella (el servidor ignora lo repetido).
+
 ## Solución de problemas
 
 | Síntoma                                    | Causa probable                                                                                                                                    |

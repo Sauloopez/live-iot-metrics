@@ -9,6 +9,7 @@
     "device-setup": "node device_setup.mjs",
     "device-sync": "node device_sync.mjs",
     "devices-health": "node devices_health.mjs",
+    "coap-sync": "node coap_sync.mjs",
     "definitions": "node definitions.mjs",
     "cleanup": "cd .. && mix run --no-start e2e/cleanup.exs"
   },
