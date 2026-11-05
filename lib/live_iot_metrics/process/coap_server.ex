@@ -1,5 +1,5 @@
 defmodule LiveMetrics.CoapServer do
-  alias LiveMetrics.MetricsBuffer
+  alias LiveMetrics.Sync.CoapResources
   use GenServer
   require Logger
 
@@ -24,6 +24,11 @@ defmodule LiveMetrics.CoapServer do
     :coap_server_registry.add_handler(["greetings"], __MODULE__, nil)
     :coap_server_registry.add_handler(["metrics"], __MODULE__, nil)
 
+    # Nodes that store measurements and synchronize when they have a network
+    :coap_server_registry.add_handler(["sync"], __MODULE__, nil)
+    :coap_server_registry.add_handler(["status"], __MODULE__, nil)
+    :coap_server_registry.add_handler(["sensors"], __MODULE__, nil)
+
     Logger.info("CoAP server started and endpoints registered.")
 
     {:ok, %{}}
@@ -42,31 +47,40 @@ defmodule LiveMetrics.CoapServer do
     {:error, :not_found}
   end
 
-  def coap_post(_ch_id, p, _name, {:coap_content, _t, _max_age, content_type, _p, payload}) do
-    # p expected ["metrics"]
+  def coap_post(
+        _ch_id,
+        [resource],
+        _name,
+        {:coap_content, _t, _max_age, content_type, _p, payload}
+      ) do
     Logger.info("Received request")
 
-    case p do
-      ["metrics"] ->
-        case content_type do
-          "application/json" ->
-            case Jason.decode(payload) do
-              {:ok, data} ->
-                case handle_metrics(data) do
-                  :ok ->
-                    {:ok, :created, {:coap_content, :undefined, 60, :undefined, [], "OK"}}
-                end
+    result =
+      case resource do
+        "status" ->
+          CoapResources.status(payload)
 
-              {:error, _} ->
-                {:error, :bad_request}
-            end
+        "sync" ->
+          CoapResources.sync(payload)
 
-          _ ->
-            {:error, :bad_request}
-        end
+        "sensors" ->
+          CoapResources.sensors(payload)
 
-      _ ->
-        {:error, :not_found}
+        "metrics" ->
+          case content_type do
+            "application/json" -> CoapResources.metrics(payload)
+            _ -> {:coap_error, :bad_request}
+          end
+
+        _ ->
+          {:coap_error, :not_found}
+      end
+
+    case result do
+      :ok -> {:ok, :created, {:coap_content, :undefined, 0, :undefined, [], "OK"}}
+      {:ok, body} -> {:ok, :created, {:coap_content, :undefined, 0, :undefined, [], body}}
+      {:error, reason} -> reject(resource, reason)
+      {:coap_error, error} -> {:error, error}
     end
   end
 
@@ -92,60 +106,8 @@ defmodule LiveMetrics.CoapServer do
 
   # --- Internal functions ---
 
-  defp handle_metrics(data) do
-    mac = Map.get(data, "m")
-    raw_sensor_id = Map.get(data, "s")
-
-    sensor_id =
-      cond do
-        is_integer(raw_sensor_id) -> raw_sensor_id
-        is_bitstring(raw_sensor_id) -> String.length(raw_sensor_id)
-        true -> 0
-      end
-
-    raw_value = Map.get(data, "v")
-
-    value =
-      cond do
-        is_integer(raw_value) ->
-          raw_value * 1.0
-
-        is_float(raw_value) ->
-          raw_value
-
-        is_binary(raw_value) ->
-          case Float.parse(raw_value) do
-            {f, _} -> f
-            :error -> 0.0
-          end
-
-        true ->
-          0.0
-      end
-
-    sensor_precision = Map.get(data, "p")
-
-    precision =
-      cond do
-        is_bitstring(sensor_precision) ->
-          case Float.parse(sensor_precision) do
-            {f, _} -> f
-            :error -> 0.0
-          end
-
-        is_float(sensor_precision) ->
-          sensor_precision
-
-        # ArduinoJson serializes whole floats such as 1.0 as the integer 1
-        is_integer(sensor_precision) ->
-          sensor_precision * 1.0
-
-        true ->
-          0.0
-      end
-
-    sensor_type = String.downcase(Map.get(data, "t") || "unknown", :default)
-    MetricsBuffer.enqueue(mac, sensor_id, sensor_type, precision, value, DateTime.utc_now())
-    :ok
+  defp reject(resource, reason) do
+    Logger.warning("CoAP /#{resource} rejected: #{reason}")
+    {:error, :bad_request}
   end
 end

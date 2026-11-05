@@ -1,199 +1,252 @@
+// CoAP node: measures and sends to live-iot over WiFi.
+//
+// With the "data" partition (partitions/tundra.csv) it stores every measurement first and
+// pushes them in batches with confirmation (`POST /sync`), so nothing is lost while WiFi is
+// down; it keeps measuring offline and an operator can still extract the data over USB.
+// Without that partition it sends each measurement as it is taken (`POST /metrics`).
 #include <Arduino.h>
+#include <LittleFS.h>
 #include <WiFi.h>
-#include <vector>
+#include <Wire.h>
 #include <esp_mac.h>
+#include <vector>
 
-// Infrastructure Repositories
-#include "../shared/presentation/controllers/SerialProtocol.h"
-#include "../shared/infrastructure/repositories/NvsRepositories.h"
-#include "../shared/infrastructure/repositories/LittleFsSensorRepository.h"
-
-// Infrastructure Services
 #include "../shared/infrastructure/coap/CoapClient.h"
-#include "../shared/infrastructure/time/NtpClient.h"
+#include "../shared/infrastructure/coap/CoapSyncTransport.h"
+#include "../shared/infrastructure/power/BatteryMonitor.h"
+#include "../shared/infrastructure/power/PowerManager.h"
+#include "../shared/infrastructure/repositories/LittleFsSensorRepository.h"
+#include "../shared/infrastructure/repositories/NvsRepositories.h"
 #include "../shared/infrastructure/sensors/SensorReader.h"
-
-// Use Cases
+#include "../shared/infrastructure/storage/LittleFsFileSystem.h"
+#include "../shared/infrastructure/storage/SegmentedMeasurementStore.h"
+#include "../shared/infrastructure/storage/StorageTask.h"
+#include "../shared/infrastructure/system/DeviceMac.h"
+#include "../shared/infrastructure/time/Ds3231Clock.h"
+#include "../shared/infrastructure/time/NodeClock.h"
+#include "../shared/infrastructure/time/NtpClient.h"
+#include "../shared/presentation/controllers/ClockCommands.h"
+#include "../shared/presentation/controllers/NetworkCommands.h"
+#include "../shared/presentation/controllers/SerialController.h"
+#include "../shared/presentation/controllers/SerialProtocol.h"
+#include "../shared/presentation/controllers/StatusCommands.h"
+#include "../shared/presentation/controllers/SyncCommands.h"
+#include "../shared/usecases/RemoteSync.h"
 #include "../shared/usecases/UseCases.h"
 
-// Presentation Controllers
-#include "../shared/presentation/controllers/SerialController.h"
-#include "../shared/presentation/controllers/NetworkCommands.h"
+// --- Board profile (docs/tundra/PLAN.md, section 4.7) ---
+static const int PIN_I2C_SDA = 21;
+static const int PIN_I2C_SCL = 22;
+static const gpio_num_t PIN_SERVICE_BUTTON = GPIO_NUM_0;
+static const gpio_num_t PIN_POWER_SWITCH = GPIO_NUM_25;
+static const uint8_t PIN_BATTERY = 39;
+static const uint32_t BATTERY_R1 = 100000;
+static const uint32_t BATTERY_R2 = 100000;
 
-// Global instances for Dependency Injection
+// --- Behaviour ---
+static const uint32_t WIFI_RETRY_MS = 30000;
+static const uint32_t SYNC_INTERVAL_MS = 5000;
+static const uint32_t STATUS_INTERVAL_MS = 10 * 60 * 1000;
+static const uint32_t MAX_FRAMES_PER_SYNC = 8;  // keeps the loop responsive between batches
+static const uint32_t MIN_VALID_TIME = 1704067200;  // 2024-01-01
+
+// --- Components ---
 NvsWifiConfigRepository wifiRepo;
 NvsCoapConfigRepository coapRepo;
 LittleFsSensorRepository sensorRepo;
-
-WifiUseCases* wifiUseCases;
-CoapUseCases* coapUseCases;
-SensorUseCases* sensorUseCases;
-
-SerialController* serialController;
-CoapClient coapClient;
-NtpClient ntpClient;
+WifiUseCases wifiUseCases(&wifiRepo);
+CoapUseCases coapUseCases(&coapRepo);
+SensorUseCases sensorUseCases(&sensorRepo);
 SensorReader sensorReader;
 
-String macAddress = "00:00:00:00:00:00";
-unsigned long lastWifiRetry = 0;
-const unsigned long WIFI_RETRY_INTERVAL_MS = 10000;
+fs::LittleFSFS dataFs;
+LittleFsFileSystem dataFiles(dataFs);
+SegmentedMeasurementStore store(dataFiles, "/m");
+StorageTask storageTask(store);
+SyncCommands syncCommands(storageTask);
 
-// State tracking for sensors
+Ds3231Clock rtc(Wire);
+NodeClock nodeClock(rtc);
+NtpClient ntpClient;
+PowerManager power(PIN_SERVICE_BUTTON, PIN_POWER_SWITCH);
+BatteryMonitor battery(PIN_BATTERY, BATTERY_R1, BATTERY_R2);
+
+CoapClient coapClient;
+CoapSyncTransport syncTransport(coapClient);
+SerialController* serialController = nullptr;
+
+String macAddress;
+uint8_t macBytes[6];
+bool storageMode = false;
+bool sensorsAnnounced = false;
+uint32_t lastWifiAttempt = 0;
+uint32_t lastSync = 0;
+uint32_t lastStatus = 0;
+bool wasConnected = false;
+
 struct SensorState {
     int id;
-    unsigned long lastReadTime;
+    uint32_t lastReadMs;
 };
 std::vector<SensorState> sensorStates;
 
-void connectToWifi() {
-    WifiConfig wifiConfig = wifiUseCases->getConfig();
-    if (!wifiConfig.isValid()) {
-        Serial.println("No valid WiFi configuration found. Use serial API to set credentials.");
-        return;
-    }
-
-    Serial.printf("Attempting to connect to WiFi SSID: %s\n", wifiConfig.ssid.c_str());
+static void startWifi() {
+    WifiConfig config = wifiUseCases.getConfig();
+    if (!config.isValid()) return;
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect(true);
-    delay(100);
-    WiFi.begin(wifiConfig.ssid.c_str(), wifiConfig.password.c_str());
+    WiFi.begin(config.ssid.c_str(), config.password.c_str());  // non blocking: checked in loop()
+    lastWifiAttempt = millis();
+}
 
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-        delay(500);
-        Serial.print(".");
-        attempts++;
+static uint32_t measurementTime() {
+    uint32_t now = nodeClock.now();
+    return now >= MIN_VALID_TIME ? now : 0;  // 0 = time unknown
+}
+
+static void handleConnected() {
+    Serial.printf("WiFi connected: %s\n", WiFi.localIP().toString().c_str());
+    ntpClient.begin();
+    coapClient.updateConfig(coapUseCases.getConfig());
+    sensorsAnnounced = false;
+    lastStatus = 0;
+}
+
+// `POST /sensors`: the server types the stored measurements with this list
+static bool announceSensors() {
+    DynamicJsonDocument doc(2048);
+    doc["mc"] = macAddress;
+    JsonArray list = doc.createNestedArray("d");
+    for (const auto& s : sensorUseCases.getSensors()) {
+        JsonObject item = list.createNestedObject();
+        item["i"] = s.id;
+        item["t"] = s.type;
+        item["pr"] = s.precision;
     }
-    Serial.println();
+    String json;
+    serializeJson(doc, json);
+    return coapClient.postJson("sensors", json);
+}
 
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("WiFi connected successfully!");
-        Serial.print("IP Address: ");
-        Serial.println(WiFi.localIP());
-        macAddress = WiFi.macAddress();
+static void sendStatus() {
+    DynamicJsonDocument doc(1024);
+    StatusCommands::fill(doc, {&nodeClock, &dataFiles, &storageTask, &battery, &power});
+    doc.remove("s");
+    doc["mc"] = macAddress;
+    doc["v"] = "coap";
+    String json;
+    serializeJson(doc, json);
+    coapClient.postJson("status", json);
+}
 
-        // Initialize Time sync once connected
-        ntpClient.begin();
-    } else {
-        Serial.println("WiFi connection failed.");
+static void syncStoredMeasurements() {
+    if (!sensorsAnnounced) sensorsAnnounced = announceSensors();
+
+    RemoteSync remote(macBytes);
+    RemoteSync::Result result;
+    storageTask.withStore([&](IMeasurementStore& s) { result = remote.run(s, syncTransport, MAX_FRAMES_PER_SYNC); });
+
+    // No NTP and no RTC: take the time from the server's answer
+    if (result.serverTime >= MIN_VALID_TIME && !nodeClock.isValid()) nodeClock.set(result.serverTime);
+
+    if (result.frames > 0) {
+        Serial.printf("Sync: %lu frame(s), server has up to seq %lu%s\n", static_cast<unsigned long>(result.frames),
+                      static_cast<unsigned long>(result.ackedSeq), result.transportError ? " (server unreachable)" : "");
+    }
+}
+
+static void readDueSensors(uint32_t nowMs, bool connected) {
+    for (const auto& sensor : sensorUseCases.getSensors()) {
+        SensorState* state = nullptr;
+        for (auto& st : sensorStates) {
+            if (st.id == sensor.id) state = &st;
+        }
+        if (!state) {
+            // Added over USB: start measuring on the next interval
+            sensorReader.begin(sensor);
+            sensorStates.push_back({sensor.id, nowMs});
+            continue;
+        }
+        if (nowMs - state->lastReadMs < sensor.interval_ms) continue;
+        state->lastReadMs = nowMs;
+
+        float raw;
+        if (!sensorReader.read(sensor, raw)) {
+            Serial.printf("Sensor %d (pin %d, %s): no valid reading\n", sensor.id, sensor.pin, sensor.driver.c_str());
+            continue;
+        }
+        float value = sensor.apply(raw);
+
+        if (storageMode) {
+            storageTask.enqueue(measurementTime(), static_cast<uint16_t>(sensor.id), value, pdMS_TO_TICKS(100));
+        } else if (connected) {
+            coapClient.sendMetric(macAddress, sensor.id, sensor.type, sensor.precision, value);
+        }
     }
 }
 
 void setup() {
-    // 1. Initialize Serial
+    power.begin();
+    power.powerPeripherals(true);  // always powered: this node does not sleep
     Serial.begin(115200);
-    delay(1000);
-    Serial.println("\n--- Starting IoT Node ---");
-
-    // Mount the sensor config filesystem (formats it if it is corrupted)
+    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+    nodeClock.begin();
     sensorRepo.begin();
 
-    // 2. Instantiate Use Cases
-    wifiUseCases = new WifiUseCases(&wifiRepo);
-    coapUseCases = new CoapUseCases(&coapRepo);
-    sensorUseCases = new SensorUseCases(&sensorRepo);
+    macAddress = deviceMac();
+    esp_read_mac(macBytes, ESP_MAC_WIFI_STA);
 
-    // The station MAC is readable before WiFi starts, so the serial API can report it right away
-    uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    macAddress = macStr;
+    // The data partition only exists with partitions/tundra.csv
+    storageMode = dataFs.begin(true, "/measurements", 5, "data") && store.open() && storageTask.begin();
 
-    // 3. Instantiate Controllers
-    serialController = new SerialController(sensorUseCases, macAddress, "coap");
-    NetworkCommands::registerOn(*serialController, wifiUseCases, coapUseCases);
-
-    // Announce serial API is ready
+    serialController = new SerialController(&sensorUseCases, macAddress, "coap");
+    NetworkCommands::registerOn(*serialController, &wifiUseCases, &coapUseCases);
+    if (storageMode) {
+        ClockCommands::registerOn(*serialController, &nodeClock);
+        StatusCommands::registerOn(*serialController, {&nodeClock, &dataFiles, &storageTask, &battery, &power});
+        syncCommands.registerOn(*serialController);
+    }
     SerialProtocol::ok("Serial controller ready");
+    Serial.printf("Storage: %s\n", storageMode ? "internal flash (store and sync)" : "none (send immediately)");
 
-    // 4. Start WiFi
-    connectToWifi();
+    coapClient.begin(coapUseCases.getConfig());
+    startWifi();
 
-    // 5. Initialize CoAP Client
-    CoapConfig coapConfig = coapUseCases->getConfig();
-    coapClient.begin(coapConfig);
-
-    // 6. Initialize Sensors Pins
-    std::vector<SensorConfig> sensors = sensorUseCases->getSensors();
-    for (const auto& sensor : sensors) {
+    for (const auto& sensor : sensorUseCases.getSensors()) {
         sensorReader.begin(sensor);
         sensorStates.push_back({sensor.id, 0});
     }
 }
 
 void loop() {
-    unsigned long currentMillis = millis();
-
-    // 1. Handle incoming Serial API commands (Configuration)
+    uint32_t now = millis();
     serialController->handle();
+    syncCommands.tick();
 
-    // 2. Handle WiFi Reconnection if connection is lost
-    if (WiFi.status() != WL_CONNECTED) {
-        if (currentMillis - lastWifiRetry >= WIFI_RETRY_INTERVAL_MS) {
-            lastWifiRetry = currentMillis;
-            Serial.println("WiFi disconnected. Reconnecting...");
-            connectToWifi();
-        }
-        return; // Skip sensor readings and CoAP processing if no network
-    }
+    bool connected = WiFi.status() == WL_CONNECTED;
+    if (connected && !wasConnected) handleConnected();
+    if (!connected && now - lastWifiAttempt >= WIFI_RETRY_MS) startWifi();
+    wasConnected = connected;
 
-    // 3. Keep CoAP client processing incoming messages/ACKs
-    coapClient.loop();
-
-    // 4. Read Sensors and Publish
-    std::vector<SensorConfig> sensors = sensorUseCases->getSensors();
-
-    for (const auto& sensor : sensors) {
-        // Find existing state for this sensor to check interval
-        SensorState* state = nullptr;
-        for (auto& st : sensorStates) {
-            if (st.id == sensor.id) {
-                state = &st;
-                break;
-            }
-        }
-
-        // If a new sensor was added dynamically via Serial API, initialize its state
-        if (!state) {
-            sensorReader.begin(sensor);
-            sensorStates.push_back({sensor.id, currentMillis});
-            continue; // Skip the first immediate read to stagger it slightly
-        }
-
-        // Check if interval has elapsed
-        if (currentMillis - state->lastReadTime >= sensor.interval_ms) {
-            state->lastReadTime = currentMillis;
-
-            // Ensure CoAP client has latest config in case it was updated via Serial API
-            coapClient.updateConfig(coapUseCases->getConfig());
-
-            float rawValue;
-            if (!sensorReader.read(sensor, rawValue)) {
-                Serial.printf("Warning: Sensor ID: %d (Pin: %d, driver: %s) returned no valid reading.\n",
-                              sensor.id, sensor.pin, sensor.driver.c_str());
-                continue;
-            }
-
-            // Apply linear calibration: value = raw * precision + offset
-            float value = sensor.apply(rawValue);
-
-            Serial.printf("Reading Sensor ID: %d (Pin: %d) | Raw: %.1f | Value: %.2f\n",
-                          sensor.id, sensor.pin, rawValue, value);
-
-            // Dispatch via CoAP
-            bool success = coapClient.sendMetric(
-                macAddress,
-                sensor.id,
-                sensor.type,
-                sensor.precision,
-                value
-            );
-
-            if (!success) {
-                Serial.println("Warning: Failed to enqueue CoAP message.");
-            }
+    if (connected) {
+        coapClient.loop();
+        // NTP keeps the RTC right while the node has a network
+        if (nodeClock.now() < MIN_VALID_TIME || !nodeClock.isValid()) {
+            time_t t = time(nullptr);
+            if (t >= MIN_VALID_TIME) nodeClock.set(static_cast<uint32_t>(t));
         }
     }
+
+    readDueSensors(now, connected);
+
+    // While a USB extraction runs, the serial stream owns the store
+    if (storageMode && connected && !syncCommands.isStreaming() && now - lastSync >= SYNC_INTERVAL_MS) {
+        lastSync = now;
+        syncStoredMeasurements();
+        if (lastStatus == 0 || now - lastStatus >= STATUS_INTERVAL_MS) {
+            lastStatus = now;
+            sendStatus();
+        }
+    }
+
+    if (!syncCommands.isStreaming()) delay(5);
 }

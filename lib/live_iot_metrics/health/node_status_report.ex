@@ -43,7 +43,7 @@ defmodule LiveMetrics.Health.NodeStatusReport do
   """
   def record(mac, variant, transport, status) when transport in @transports and is_map(status) do
     mac = mac |> String.trim() |> String.upcase()
-    ensure_node(mac)
+    {:ok, _node} = Nodes.ensure(mac)
 
     clock = Map.get(status, "c", %{})
     battery = Map.get(status, "b", %{})
@@ -98,14 +98,6 @@ defmodule LiveMetrics.Health.NodeStatusReport do
       limit: ^limit
     )
     |> Repo.all()
-  end
-
-  defp ensure_node(mac) do
-    unless Repo.exists?(from n in Nodes, where: n.mac == ^mac) do
-      %Nodes{}
-      |> Nodes.changeset(%{name: mac, mac: mac})
-      |> Repo.insert(on_conflict: :nothing)
-    end
   end
 
   defp int(value) when is_integer(value), do: value

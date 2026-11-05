@@ -20,6 +20,23 @@ defmodule LiveMetrics.Models.Nodes do
     |> validate_format(:mac, ~r/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/)
   end
 
+  @doc "Returns the node with `mac`, registering it (named after its MAC) if it is new."
+  def ensure(mac) do
+    mac = mac |> String.trim() |> String.upcase()
+
+    case Repo.get_by(__MODULE__, mac: mac) do
+      nil ->
+        %__MODULE__{}
+        |> changeset(%{name: mac, mac: mac})
+        |> Repo.insert(on_conflict: :nothing)
+
+        {:ok, Repo.get_by!(__MODULE__, mac: mac)}
+
+      node ->
+        {:ok, node}
+    end
+  end
+
   @doc "Nodes with no sensor currently being actively tracked by any batch."
   def find_available do
     actively_tracked_node_ids =

@@ -1,16 +1,17 @@
-#ifndef ISOLATED_STATUS_COMMANDS_H
-#define ISOLATED_STATUS_COMMANDS_H
+#ifndef STATUS_COMMANDS_H
+#define STATUS_COMMANDS_H
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include "../../../shared/domain/repositories/IClock.h"
-#include "../../../shared/domain/repositories/IFileSystem.h"
-#include "../../../shared/infrastructure/power/BatteryMonitor.h"
-#include "../../../shared/infrastructure/power/PowerManager.h"
-#include "../../../shared/infrastructure/storage/StorageTask.h"
-#include "../../../shared/presentation/controllers/SerialController.h"
+#include "../../domain/repositories/IClock.h"
+#include "../../domain/repositories/IFileSystem.h"
+#include "../../infrastructure/power/BatteryMonitor.h"
+#include "../../infrastructure/power/PowerManager.h"
+#include "../../infrastructure/storage/StorageTask.h"
+#include "SerialController.h"
 
-// `status` serial command: battery, clock, storage and power counters of an isolated node.
+// `status` serial command: battery, clock, storage and power counters of a node with local
+// storage. fill() builds the same document for `POST /status` over CoAP.
 //
 // Response (one line; keys documented in SerialProtocol.h and docs/tundra/SERIAL_API.md):
 //
@@ -33,13 +34,12 @@ struct Dependencies {
     PowerManager* power;
 };
 
-inline void handleStatus(const Dependencies& deps) {
+inline void fill(JsonDocument& doc, const Dependencies& deps) {
     StoreStatus store{1, 0};
     deps.storage->withStore([&](IMeasurementStore& s) { store = s.status(); });
     BatteryMonitor::Reading battery = deps.battery->read();
     const RuntimeState& runtime = deps.power->state();
 
-    DynamicJsonDocument doc(768);
     doc["s"] = "ok";
     doc["c"]["t"] = deps.clock->now();
     doc["c"]["v"] = deps.clock->isValid();
@@ -54,7 +54,11 @@ inline void handleStatus(const Dependencies& deps) {
     doc["pw"]["bc"] = runtime.bootCount;
     doc["pw"]["aw"] = runtime.awakeMsTotal + millis();
     doc["pw"]["rr"] = static_cast<int>(deps.power->resetReason());
+}
 
+inline void handleStatus(const Dependencies& deps) {
+    DynamicJsonDocument doc(768);
+    fill(doc, deps);
     serializeJson(doc, Serial);
     Serial.println();
 }
@@ -65,4 +69,4 @@ inline void registerOn(SerialController& controller, const Dependencies& deps) {
 
 } // namespace StatusCommands
 
-#endif // ISOLATED_STATUS_COMMANDS_H
+#endif // STATUS_COMMANDS_H

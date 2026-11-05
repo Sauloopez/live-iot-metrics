@@ -19,6 +19,25 @@ private:
     bool isStarted = false;
     uint16_t msgIdCounter = 1;
 
+    // Answer awaited by request(); filled by the library callback (one request at a time)
+    struct PendingResponse {
+        uint16_t messageId = 0;
+        bool received = false;
+        uint8_t code = 0;
+        uint8_t payload[64];
+        size_t length = 0;
+    };
+    static PendingResponse& pending() {
+        static PendingResponse response;
+        return response;
+    }
+
+    uint16_t nextMessageId() {
+        uint16_t id = msgIdCounter++;
+        if (msgIdCounter == 0) msgIdCounter = 1;
+        return id;
+    }
+
     bool resolveServer() {
         if (serverIp.fromString(config.host)) {
             return true; // Already a valid IP address string
@@ -86,8 +105,7 @@ public:
 
         String payload;
         serializeJson(doc, payload);
-        uint16_t msgId = msgIdCounter++;
-        if (msgIdCounter == 0) msgIdCounter = 1;
+        uint16_t msgId = nextMessageId();
 
         Serial.printf("Sending COAP message %d \n", msgId);
 
@@ -117,7 +135,50 @@ public:
     }
 
     static void callback(CoapPacket& p, IPAddress ad, int a) {
+        PendingResponse& response = pending();
+        if (response.messageId != 0 && p.messageid == response.messageId) {
+            response.code = p.code;
+            response.length = p.payloadlen < sizeof(response.payload) ? p.payloadlen : sizeof(response.payload);
+            if (p.payload && response.length) memcpy(response.payload, p.payload, response.length);
+            response.received = true;
+            return;
+        }
         Serial.printf("Coap message %d response code %d\n", p.messageid, p.code);
+    }
+
+    // Confirmable POST that waits for the server's answer. Returns true only for a 2.xx
+    // response; `response` receives its payload (truncated to `responseCap`).
+    bool request(const char* path, const uint8_t* payload, size_t length, COAP_CONTENT_TYPE type,
+                 uint8_t* response = nullptr, size_t responseCap = 0, size_t* responseLen = nullptr,
+                 uint32_t timeoutMs = 3000) {
+        ensureStarted();
+        if (!isStarted || !config.isValid() || !resolveServer()) return false;
+
+        PendingResponse& answer = pending();
+        answer = PendingResponse();
+        answer.messageId = nextMessageId();
+
+        uint16_t sent = coap->send(serverIp, config.port, path, COAP_CON, COAP_POST, NULL, 0, payload, length, type,
+                                   answer.messageId);
+        if (sent == 0) return false;
+
+        uint32_t start = millis();
+        while (!answer.received && millis() - start < timeoutMs) {
+            coap->loop();
+            delay(2);
+        }
+        answer.messageId = 0;
+
+        if (!answer.received || (answer.code >> 5) != 2) return false;
+        if (response && responseLen) {
+            *responseLen = answer.length < responseCap ? answer.length : responseCap;
+            memcpy(response, answer.payload, *responseLen);
+        }
+        return true;
+    }
+
+    bool postJson(const char* path, const String& json) {
+        return request(path, reinterpret_cast<const uint8_t*>(json.c_str()), json.length(), COAP_APPLICATION_JSON);
     }
 
     void loop() {

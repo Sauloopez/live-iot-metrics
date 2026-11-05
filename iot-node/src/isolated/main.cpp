@@ -24,7 +24,7 @@
 #include "../shared/presentation/controllers/SyncCommands.h"
 #include "../shared/usecases/SensorUseCases.h"
 #include "../shared/usecases/WakeCycle.h"
-#include "presentation/controllers/StatusCommands.h"
+#include "../shared/presentation/controllers/StatusCommands.h"
 
 // --- Board profile (docs/tundra/PLAN.md, section 4.7) ---
 static const int PIN_I2C_SDA = 21;
