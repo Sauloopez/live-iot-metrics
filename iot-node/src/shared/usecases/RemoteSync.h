@@ -28,7 +28,8 @@
 //     and keeps everything for the next one.
 class RemoteSync {
 public:
-    static const size_t RECORDS_PER_FRAME = 16;
+    static const size_t RECORDS_PER_FRAME = 16;  // largest frame; LoRa uses LORA_RECORDS_PER_FRAME
+    static const size_t LORA_RECORDS_PER_FRAME = 8;  // fits one LoRa packet
     static const uint32_t WINDOW = 64;
     static const uint32_t STALL_LIMIT = 3;
     static const size_t MAC_SIZE = 6;
@@ -42,7 +43,10 @@ public:
         bool transportError = false;
     };
 
-    explicit RemoteSync(const uint8_t mac[MAC_SIZE]) { memcpy(this->mac, mac, MAC_SIZE); }
+    explicit RemoteSync(const uint8_t mac[MAC_SIZE], size_t recordsPerFrame = RECORDS_PER_FRAME)
+        : perFrame(recordsPerFrame == 0 || recordsPerFrame > RECORDS_PER_FRAME ? RECORDS_PER_FRAME : recordsPerFrame) {
+        memcpy(this->mac, mac, MAC_SIZE);
+    }
 
     // Runs up to `maxExchanges` exchanges. Call it with the store locked (StorageTask::withStore).
     // Keep the same instance between sessions: it remembers how far it sent.
@@ -94,12 +98,13 @@ private:
     uint8_t mac[MAC_SIZE];
     uint8_t request[MAC_SIZE + SyncStream::HEADER_SIZE + RECORDS_PER_FRAME * MeasurementCodec::MAX_RECORD_SIZE +
                     SyncStream::CRC_SIZE];
+    size_t perFrame;
     uint32_t cursor = 1;
     uint32_t stalledQueries = 0;
 
     size_t buildData(IMeasurementStore& store) {
-        SyncStream stream(RECORDS_PER_FRAME);
-        stream.start(store, cursor, RECORDS_PER_FRAME);
+        SyncStream stream(perFrame);
+        stream.start(store, cursor, perFrame);
         size_t len = 0;
         uint32_t last = 0;
         if (stream.next(store, request + MAC_SIZE, sizeof(request) - MAC_SIZE, &len, &last) !=

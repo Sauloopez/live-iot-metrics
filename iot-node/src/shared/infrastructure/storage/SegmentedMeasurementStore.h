@@ -120,6 +120,16 @@ public:
 
     StoreStatus status() const override { return state; }
 
+    // For a store that keeps another node's data (LoRa gateway custody): before the first
+    // record, continue that node's numbering so its measurements keep their original seq.
+    bool startAfter(uint32_t lastSeq) {
+        if (!segments.empty() || state.nextSeq != 1 || state.ackedSeq != 0) return false;
+        StoreStatus updated{lastSeq + 1, lastSeq};
+        if (!saveState(updated)) return false;
+        state = updated;
+        return true;
+    }
+
     size_t segmentCount() const { return segments.size(); }
 
 private:
